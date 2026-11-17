@@ -1,0 +1,2287 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SafePath – Personal Safety Route Planner</title>
+  <meta name="description" content="Multi-objective personal safety route planner comparing Shortest, Safety-Only, Fixed-Weighted, and Adaptive routing strategies with sensitivity and robustness analysis." />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            navy: {
+              900: '#0f172a',
+              800: '#1e293b',
+              700: '#334155',
+            },
+            safe: {
+              600: '#059669',
+              500: '#10b981',
+              100: '#d1fae5',
+              50: '#ecfdf5',
+            },
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    @media print {
+      header, nav, #home-section, #plan-section, #sensitivity-section, #file-handling-card, footer, .no-print {
+        display: none !important;
+      }
+      #report-preview-card {
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+      }
+      body {
+        background: #ffffff !important;
+        color: #000000 !important;
+      }
+    }
+    .focus-ring:focus-visible {
+      outline: 3px solid #2563eb;
+      outline-offset: 2px;
+    }
+    canvas#cityMapCanvas {
+      touch-action: none;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900 antialiased selection:bg-emerald-600 selection:text-white">
+
+  <!-- Sticky Top Navigation -->
+  <header class="sticky top-0 z-50 bg-white/95 backdrop-blur border-b border-slate-200 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <a href="#home-section" class="flex items-center gap-3 focus-ring rounded-lg p-1" aria-label="SafePath Home">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-900 via-blue-700 to-emerald-600 flex items-center justify-center text-white shadow-md">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4" />
+          </svg>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="font-extrabold text-lg tracking-tight text-slate-900">SafePath</span>
+            <span class="hidden sm:inline-block text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+              Bangalore Network
+            </span>
+          </div>
+          <p class="text-[11px] text-slate-500 leading-none">Personal Safety Route Planner</p>
+        </div>
+      </a>
+
+      <nav aria-label="Primary Navigation" class="hidden lg:flex items-center gap-1">
+        <a href="#home-section" class="nav-link px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:text-blue-900 hover:bg-slate-100 transition focus-ring">Home</a>
+        <a href="#plan-section" class="nav-link px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:text-blue-900 hover:bg-slate-100 transition focus-ring">Plan Route</a>
+        <a href="#compare-section" class="nav-link px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:text-blue-900 hover:bg-slate-100 transition focus-ring">Compare Strategies</a>
+        <a href="#sensitivity-section" class="nav-link px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:text-blue-900 hover:bg-slate-100 transition focus-ring">Sensitivity &amp; Robustness</a>
+        <a href="#reports-section" class="nav-link px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:text-blue-900 hover:bg-slate-100 transition focus-ring">Reports</a>
+        <a href="#about-section" class="nav-link px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:text-blue-900 hover:bg-slate-100 transition focus-ring">About</a>
+      </nav>
+
+      <button id="mobileMenuBtn" type="button" class="lg:hidden p-2 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-100 focus-ring" aria-label="Toggle navigation menu" aria-expanded="false">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      </button>
+    </div>
+
+    <!-- Mobile Nav Drawer -->
+    <div id="mobileMenu" class="hidden lg:hidden border-t border-slate-200 bg-white px-4 py-3 space-y-1">
+      <a href="#home-section" class="block px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-100">Home</a>
+      <a href="#plan-section" class="block px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-100">Plan Route</a>
+      <a href="#compare-section" class="block px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-100">Compare Strategies</a>
+      <a href="#sensitivity-section" class="block px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-100">Sensitivity &amp; Robustness</a>
+      <a href="#reports-section" class="block px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-100">Reports</a>
+      <a href="#about-section" class="block px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-100">About</a>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-12">
+
+    <!-- 1. HOME / HERO SECTION -->
+    <section id="home-section" class="bg-gradient-to-br from-blue-950 via-blue-900 to-emerald-900 rounded-3xl p-8 md:p-10 text-white shadow-xl relative overflow-hidden">
+      <div class="relative z-10 grid grid-cols-1 lg:grid-cols-3 gap-8 items-center">
+        <div class="lg:col-span-2 space-y-4">
+          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 border border-white/20 text-xs font-semibold text-emerald-200">
+            <span>Academic Research &amp; Python Experiential Learning Prototype</span>
+          </div>
+          <h1 class="text-3xl sm:text-4xl font-extrabold tracking-tight leading-tight">
+            SafePath – Personal Safety Route Planner
+          </h1>
+          <p class="text-blue-100 text-sm sm:text-base max-w-2xl leading-relaxed">
+            Conventional navigation optimizes purely for shortest distance or fastest arrival—often routing women, students, senior citizens, and solo commuters through unlit alleys or isolated lanes. SafePath jointly optimizes <strong>travel time</strong> and <strong>multi-factor personal safety</strong> across a 12-node Bangalore urban graph.
+          </p>
+          <div class="flex flex-wrap items-center gap-3 pt-2">
+            <a href="#plan-section" class="px-5 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm shadow-lg transition focus-ring">
+              Plan &amp; Compare Routes
+            </a>
+            <a href="#about-section" class="px-5 py-3 rounded-xl bg-white/10 hover:bg-white/20 border border-white/25 text-white font-semibold text-sm transition focus-ring">
+              View Optimization Formulas
+            </a>
+          </div>
+        </div>
+        <div class="bg-white/10 backdrop-blur border border-white/20 rounded-2xl p-5 space-y-3 text-xs">
+          <h2 class="font-bold text-sm text-emerald-200 uppercase tracking-wider">4 Evaluated Routing Strategies</h2>
+          <ul class="space-y-2 text-blue-50">
+            <li class="flex items-start gap-2"><span class="w-2.5 h-2.5 rounded-full bg-sky-400 mt-1 shrink-0"></span><span><strong>1. Shortest / Fastest:</strong> Pure time minimization</span></li>
+            <li class="flex items-start gap-2"><span class="w-2.5 h-2.5 rounded-full bg-rose-400 mt-1 shrink-0"></span><span><strong>2. Safety-Only:</strong> Pure safety maximization</span></li>
+            <li class="flex items-start gap-2"><span class="w-2.5 h-2.5 rounded-full bg-amber-400 mt-1 shrink-0"></span><span><strong>3. Fixed Weighted:</strong> Static linear weights (0.7 / 0.3)</span></li>
+            <li class="flex items-start gap-2"><span class="w-2.5 h-2.5 rounded-full bg-emerald-400 mt-1 shrink-0"></span><span><strong>4. Adaptive Multi-Objective:</strong> Time-of-day &amp; risk-constrained Pareto optimization</span></li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. PLAN ROUTE SECTION -->
+    <section id="plan-section" aria-labelledby="plan-heading" class="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-sm space-y-6">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+        <div>
+          <h2 id="plan-heading" class="text-xl font-bold text-slate-900">Plan Your Safe Journey (Bangalore Network)</h2>
+          <p class="text-xs text-slate-500 mt-1">Select any source &amp; destination pair or choose a popular corridor preset to compare all 4 routing strategies.</p>
+        </div>
+        <div class="flex items-center gap-2 text-xs">
+          <span class="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-800 border border-blue-200 font-semibold">12 Locations</span>
+          <span class="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 font-semibold">26 Multi-Segment Roads</span>
+        </div>
+      </div>
+
+      <!-- Popular Presets -->
+      <div>
+        <span class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Popular Bangalore Route Pairs (Quick Select)</span>
+        <div id="presetButtons" class="flex flex-wrap gap-2"></div>
+      </div>
+
+      <!-- Main Route Form -->
+      <form id="routeForm" class="space-y-6">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+          <div>
+            <label for="sourceSelect" class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Source Location</label>
+            <select id="sourceSelect" class="w-full rounded-xl border border-slate-300 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 focus:bg-white focus:border-blue-700 focus-ring"></select>
+          </div>
+          <div>
+            <label for="destSelect" class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Destination Location</label>
+            <select id="destSelect" class="w-full rounded-xl border border-slate-300 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 focus:bg-white focus:border-blue-700 focus-ring"></select>
+          </div>
+          <div>
+            <span class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Time of Day</span>
+            <div class="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Time of Day">
+              <button type="button" data-time="day" class="time-btn py-2.5 px-2 rounded-xl border text-xs font-bold transition focus-ring">Day</button>
+              <button type="button" data-time="evening" class="time-btn py-2.5 px-2 rounded-xl border text-xs font-bold transition focus-ring">Evening</button>
+              <button type="button" data-time="night" class="time-btn py-2.5 px-2 rounded-xl border text-xs font-bold transition focus-ring">Night</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+          <!-- Risk Preference Slider for Adaptive -->
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <label for="riskPrefSlider" class="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                Adaptive User Risk Preference
+              </label>
+              <span id="riskPrefLabel" class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">Balanced (50)</span>
+            </div>
+            <input id="riskPrefSlider" type="range" min="0" max="100" step="5" value="50" class="w-full accent-emerald-600 cursor-pointer focus-ring" />
+            <div class="flex justify-between text-[11px] text-slate-500 mt-1 font-medium">
+              <span>Time-Priority (0)</span>
+              <span>Balanced (50)</span>
+              <span>Cautious (100)</span>
+            </div>
+          </div>
+
+          <!-- Fixed Weighted Sliders -->
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <label for="fixedWeightSlider" class="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                Fixed Weighted Route Split (Safety / Time)
+              </label>
+              <span id="fixedWeightLabel" class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">Safety 0.70 / Time 0.30</span>
+            </div>
+            <input id="fixedWeightSlider" type="range" min="0" max="1" step="0.05" value="0.70" class="w-full accent-amber-600 cursor-pointer focus-ring" />
+            <div class="flex justify-between text-[11px] text-slate-500 mt-1 font-medium">
+              <span>0.0 Safety / 1.0 Time</span>
+              <span>Default 0.70 / 0.30</span>
+              <span>1.0 Safety / 0.0 Time</span>
+            </div>
+          </div>
+        </div>
+
+        <div id="formError" class="hidden p-3 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs font-semibold" role="alert"></div>
+
+        <div class="flex flex-wrap items-center justify-between gap-4">
+          <p class="text-xs text-slate-500">
+            Tip: Try <strong>Night</strong> mode to observe how the Adaptive strategy boosts safety weight and enforces high-risk avoidance.
+          </p>
+          <button id="findRoutesBtn" type="submit" class="px-8 py-3.5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-bold text-sm shadow-md transition flex items-center gap-2 cursor-pointer focus-ring">
+            <span id="findBtnSpinner" class="hidden w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+            <span id="findBtnText">Find &amp; Compare Routes</span>
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <!-- 3. COMPARE STRATEGIES DASHBOARD -->
+    <section id="compare-section" aria-labelledby="compare-heading" class="space-y-6">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h2 id="compare-heading" class="text-2xl font-extrabold text-slate-900">Strategy Comparison Dashboard</h2>
+          <p id="activeRouteSubtitle" class="text-xs text-slate-500 mt-0.5"></p>
+        </div>
+        <div id="disruptionBadge" class="hidden px-3 py-1.5 rounded-xl bg-rose-100 border border-rose-300 text-rose-900 text-xs font-bold">
+          Active Safety Condition Disruption Applied
+        </div>
+      </div>
+
+      <!-- Pareto-Aware Recommendation Callout -->
+      <div id="paretoCallout" class="bg-emerald-50 border-l-4 border-emerald-600 rounded-r-2xl p-5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div class="space-y-1">
+          <div class="flex items-center gap-2">
+            <span class="px-2 py-0.5 rounded-md bg-emerald-600 text-white text-[11px] font-bold uppercase">Adaptive Pareto Recommendation</span>
+            <span id="paretoStatusTag" class="text-xs font-semibold text-emerald-800"></span>
+          </div>
+          <p id="paretoExplanation" class="text-sm text-slate-800 leading-relaxed font-medium"></p>
+          <p id="adaptiveWeightsSummary" class="text-xs text-emerald-900/80"></p>
+        </div>
+        <div class="shrink-0 flex flex-col items-end">
+          <span class="text-[11px] uppercase font-bold text-emerald-800">Adaptive Safety Score</span>
+          <span id="paretoHeroScore" class="text-3xl font-extrabold text-emerald-700">--</span>
+        </div>
+      </div>
+
+      <!-- 4 Visual Cards -->
+      <div id="strategyCardsGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4"></div>
+
+      <!-- Interactive City Map + Segment Inspector -->
+      <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-5">
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+          <div>
+            <h3 class="text-lg font-bold text-slate-900">Interactive Bangalore Safety Network Map</h3>
+            <p class="text-xs text-slate-500">Hover over any road segment or location node for live safety scores. Click a strategy pill to focus.</p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <div class="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1 text-xs font-semibold" role="group" aria-label="Map Color Mode">
+              <button type="button" id="colorModeSafety" class="px-3 py-1.5 rounded-lg bg-blue-900 text-white transition focus-ring">Color by Safety (G/Y/R)</button>
+              <button type="button" id="colorModeStrategy" class="px-3 py-1.5 rounded-lg text-slate-700 hover:text-slate-900 transition focus-ring">Color by Strategy</button>
+            </div>
+            <select id="mapFocusSelect" aria-label="Focus route on map" class="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 focus-ring">
+              <option value="all">Show All 4 Routes</option>
+              <option value="shortest">Focus: 1. Shortest / Fastest</option>
+              <option value="safety">Focus: 2. Safety-Only</option>
+              <option value="fixed">Focus: 3. Fixed Weighted</option>
+              <option value="adaptive" selected>Focus: 4. Adaptive (Highlight)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+          <div class="lg:col-span-2 relative rounded-2xl border border-slate-200 bg-slate-950 overflow-hidden shadow-inner">
+            <canvas id="cityMapCanvas" width="900" height="540" class="w-full h-auto block cursor-crosshair" aria-label="Interactive Bangalore route safety network map"></canvas>
+            <!-- Floating Hover Tooltip -->
+            <div id="mapTooltip" class="hidden pointer-events-none absolute z-20 bg-white/95 backdrop-blur border border-slate-300 rounded-xl p-3 shadow-xl text-xs text-slate-900 max-w-xs"></div>
+          </div>
+
+          <!-- Legend & Selected Route Segments -->
+          <div class="space-y-4">
+            <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2.5 text-xs">
+              <h4 class="font-bold text-slate-900 uppercase tracking-wider text-[11px]">Map Legend</h4>
+              <div class="grid grid-cols-2 gap-2">
+                <div class="flex items-center gap-2"><span class="w-4 h-1.5 rounded bg-emerald-500 inline-block"></span><span>Safe (&ge; 70)</span></div>
+                <div class="flex items-center gap-2"><span class="w-4 h-1.5 rounded bg-amber-500 inline-block"></span><span>Medium (40–69)</span></div>
+                <div class="flex items-center gap-2"><span class="w-4 h-1.5 rounded bg-red-500 inline-block"></span><span>High-Risk (&lt; 40)</span></div>
+                <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-purple-600 inline-block"></span><span>Police / Hospital</span></div>
+              </div>
+              <div class="pt-2 border-t border-slate-200 grid grid-cols-2 gap-1.5 text-[11px] text-slate-600">
+                <div><strong>Solid Bold:</strong> Adaptive</div>
+                <div><strong>Dashed Blue:</strong> Shortest</div>
+                <div><strong>Dotted Rose:</strong> Safety-Only</div>
+                <div><strong>Dash-Dot Amber:</strong> Fixed</div>
+              </div>
+            </div>
+
+            <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2">
+              <div class="flex items-center justify-between">
+                <h4 class="font-bold text-xs text-slate-900 uppercase tracking-wider">Segment-by-Segment Inspector</h4>
+                <select id="segmentInspectStrategy" aria-label="Select strategy segments to inspect" class="text-[11px] font-semibold bg-white border border-slate-300 rounded-lg px-2 py-1 focus-ring">
+                  <option value="adaptive">Adaptive</option>
+                  <option value="shortest">Shortest</option>
+                  <option value="safety">Safety-Only</option>
+                  <option value="fixed">Fixed Weighted</option>
+                </select>
+              </div>
+              <div id="segmentList" class="space-y-2 max-h-[295px] overflow-y-auto pr-1"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Charts Row: Safety vs Time + Factor Radar -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-3">
+          <div class="flex items-center justify-between">
+            <div>
+              <h3 class="font-bold text-base text-slate-900">Safety Score vs. Travel Time</h3>
+              <p class="text-xs text-slate-500">Pareto frontier analysis (top-left = faster &amp; safer)</p>
+            </div>
+            <div class="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5 text-[11px] font-semibold">
+              <button type="button" id="chartTypeScatter" class="px-2.5 py-1 rounded-md bg-blue-900 text-white focus-ring">Scatter</button>
+              <button type="button" id="chartTypeBar" class="px-2.5 py-1 rounded-md text-slate-700 focus-ring">Bar</button>
+            </div>
+          </div>
+          <div class="h-72 relative">
+            <canvas id="safetyTimeChart" aria-label="Safety score versus travel time chart"></canvas>
+          </div>
+        </div>
+
+        <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-3">
+          <div>
+            <h3 class="font-bold text-base text-slate-900">Safety Factor Breakdown (0–10 Scale)</h3>
+            <p class="text-xs text-slate-500">Comparing length-weighted scores across all 6 safety dimensions</p>
+          </div>
+          <div class="h-72 relative">
+            <canvas id="factorRadarChart" aria-label="Safety factor radar chart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Side-by-Side Comparison Table -->
+      <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
+        <h3 class="font-bold text-lg text-slate-900">Side-by-Side Quantitative Comparison Table</h3>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse text-xs sm:text-sm">
+            <thead>
+              <tr class="border-b-2 border-slate-200 bg-slate-50 text-slate-700">
+                <th class="py-3 px-4 font-bold">Metric / Safety Factor</th>
+                <th class="py-3 px-4 font-bold text-sky-800">1. Shortest / Fastest</th>
+                <th class="py-3 px-4 font-bold text-rose-800">2. Safety-Only</th>
+                <th class="py-3 px-4 font-bold text-amber-800">3. Fixed Weighted</th>
+                <th class="py-3 px-4 font-bold text-emerald-800 bg-emerald-50/70">4. Adaptive (Proposed)</th>
+              </tr>
+            </thead>
+            <tbody id="comparisonTableBody" class="divide-y divide-slate-100"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. SENSITIVITY & ROBUSTNESS SECTION -->
+    <section id="sensitivity-section" aria-labelledby="sensitivity-heading" class="space-y-6">
+      <div>
+        <h2 id="sensitivity-heading" class="text-2xl font-extrabold text-slate-900">Sensitivity Analysis &amp; Robustness Testing</h2>
+        <p class="text-xs text-slate-500 mt-1">Adjust individual safety factor weights in real time or simulate sudden urban disruptions to evaluate strategy resilience.</p>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <!-- Factor Weight Sliders -->
+        <div class="lg:col-span-5 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div>
+              <h3 class="font-bold text-base text-slate-900">Safety Factor Weights</h3>
+              <p class="text-[11px] text-slate-500">Normalized automatically (sum = 100%)</p>
+            </div>
+            <button type="button" id="resetWeightsBtn" class="px-3 py-1.5 rounded-lg border border-slate-300 bg-slate-50 hover:bg-slate-100 text-xs font-semibold text-slate-700 cursor-pointer focus-ring">
+              Reset Defaults
+            </button>
+          </div>
+
+          <div id="factorSlidersContainer" class="space-y-3.5"></div>
+
+          <div class="pt-3 border-t border-slate-100">
+            <div class="flex justify-between text-xs font-bold text-slate-800 mb-1">
+              <label for="sensSafetyVsTimeSlider">Overall Safety vs. Time Emphasis</label>
+              <span id="sensSafetyVsTimeValue" class="text-blue-800">Balanced</span>
+            </div>
+            <input id="sensSafetyVsTimeSlider" type="range" min="0" max="100" step="5" value="50" class="w-full accent-blue-800 cursor-pointer focus-ring" />
+          </div>
+
+          <div id="sensitivityShiftAlert" class="p-3 rounded-xl bg-blue-50 border border-blue-200 text-xs text-blue-900 font-medium"></div>
+        </div>
+
+        <!-- Sensitivity Tornado Chart -->
+        <div class="lg:col-span-7 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between space-y-4">
+          <div>
+            <div class="flex items-center justify-between gap-2">
+              <h3 class="font-bold text-base text-slate-900">Sensitivity Tornado Chart (Impact on Safety Score)</h3>
+              <span id="mostSensitiveBadge" class="px-2.5 py-1 rounded-full bg-amber-100 text-amber-900 border border-amber-200 text-[11px] font-bold"></span>
+            </div>
+            <p class="text-xs text-slate-500 mt-0.5">
+              Measures how much the recommended route's Safety Score changes when each factor's weight is varied from 0% to 50% (holding others proportional).
+            </p>
+          </div>
+          <div class="h-80 relative">
+            <canvas id="tornadoChart" aria-label="Sensitivity tornado chart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Robustness Simulator -->
+      <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-5">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+          <div>
+            <h3 class="font-bold text-lg text-slate-900">Robustness Test: Dynamic Safety Disruption Simulator</h3>
+            <p class="text-xs text-slate-500 mt-0.5">
+              Randomly or selectively degrades lighting, increases incident risk, and lowers pedestrian crowd on 1–3 segments to verify whether the Adaptive method re-routes better than fixed-weight and shortest methods.
+            </p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <button type="button" id="simulateDisruptionBtn" class="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-sm transition cursor-pointer focus-ring">
+              Simulate Safety Condition Change
+            </button>
+            <button type="button" id="resetDisruptionBtn" class="hidden px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-800 font-semibold text-xs transition cursor-pointer focus-ring">
+              Restore Normal Conditions
+            </button>
+          </div>
+        </div>
+
+        <div id="robustnessPlaceholder" class="bg-slate-50 border border-dashed border-slate-300 rounded-xl p-6 text-center text-xs text-slate-600">
+          Click <strong>&ldquo;Simulate Safety Condition Change&rdquo;</strong> above to inject lighting outages, incident spikes, or crowd drops on active road segments and compare Before vs. After route reactions.
+        </div>
+
+        <div id="robustnessResults" class="hidden space-y-5">
+          <div id="disruptionLog" class="bg-rose-50 border border-rose-200 rounded-xl p-4 text-xs text-rose-900 space-y-1.5"></div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr class="border-b border-slate-200 bg-slate-50 text-slate-700">
+                  <th class="py-2.5 px-3 font-bold">Strategy</th>
+                  <th class="py-2.5 px-3 font-bold">Baseline Safety</th>
+                  <th class="py-2.5 px-3 font-bold">Post-Disruption Safety</th>
+                  <th class="py-2.5 px-3 font-bold">Safety Change (&Delta;)</th>
+                  <th class="py-2.5 px-3 font-bold">High-Risk Segments</th>
+                  <th class="py-2.5 px-3 font-bold">Reaction / Re-routing</th>
+                </tr>
+              </thead>
+              <tbody id="robustnessTableBody" class="divide-y divide-slate-100"></tbody>
+            </table>
+          </div>
+          <div id="robustnessVerdict" class="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 font-semibold"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5. REPORTS & FILE HANDLING SECTION -->
+    <section id="reports-section" aria-labelledby="reports-heading" class="space-y-6">
+      <div>
+        <h2 id="reports-heading" class="text-2xl font-extrabold text-slate-900">Safety Report Generator &amp; Saved Analyses</h2>
+        <p class="text-xs text-slate-500 mt-1">Export printable safety briefings and manage saved route analyses via localStorage and JSON files.</p>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <!-- Printable Safety Report Card -->
+        <div id="report-preview-card" class="lg:col-span-7 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
+            <div>
+              <h3 class="font-bold text-base text-slate-900">Adaptive Route Safety Report</h3>
+              <p class="text-[11px] text-slate-500">Printable &amp; downloadable briefing for your recommended journey</p>
+            </div>
+            <div class="flex items-center gap-2 no-print">
+              <button type="button" id="printReportBtn" class="px-3 py-1.5 rounded-lg bg-blue-900 hover:bg-blue-800 text-white text-xs font-semibold cursor-pointer focus-ring">
+                Print / Save PDF
+              </button>
+              <button type="button" id="downloadReportTxtBtn" class="px-3 py-1.5 rounded-lg border border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-800 text-xs font-semibold cursor-pointer focus-ring">
+                Download .TXT
+              </button>
+              <a href="/safepath.html" download="SafePath.html" class="px-3 py-1.5 rounded-lg border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 text-xs font-semibold focus-ring">
+                Download .HTML
+              </a>
+            </div>
+          </div>
+          <div id="safetyReportContent" class="text-xs text-slate-800 space-y-4 leading-relaxed"></div>
+        </div>
+
+        <!-- File Handling Simulation (localStorage + JSON) -->
+        <div id="file-handling-card" class="lg:col-span-5 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
+          <div class="border-b border-slate-100 pb-3">
+            <h3 class="font-bold text-base text-slate-900">File Handling Simulation (JSON &amp; Storage)</h3>
+            <p class="text-[11px] text-slate-500">Persist analyses in browser storage or export/import portable JSON snapshots</p>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <button type="button" id="saveLocalBtn" class="py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition cursor-pointer focus-ring">
+              Save to Browser Storage
+            </button>
+            <button type="button" id="exportJsonBtn" class="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold transition cursor-pointer focus-ring">
+              Download JSON File
+            </button>
+          </div>
+
+          <div>
+            <label for="importJsonInput" class="block text-xs font-semibold text-slate-700 mb-1.5">Load Analysis from JSON File</label>
+            <input id="importJsonInput" type="file" accept=".json,application/json" class="block w-full text-xs text-slate-600 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-800 hover:file:bg-blue-100 cursor-pointer focus-ring" />
+          </div>
+
+          <div id="fileStatusMsg" class="hidden p-2.5 rounded-lg text-xs font-medium"></div>
+
+          <div class="space-y-2 pt-2">
+            <h4 class="text-xs font-bold text-slate-700 uppercase tracking-wider">Saved Analyses (localStorage)</h4>
+            <div id="savedAnalysesList" class="space-y-2 max-h-60 overflow-y-auto pr-1"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6. ABOUT & COLLAPSIBLE METHODOLOGY SECTION -->
+    <section id="about-section" aria-labelledby="about-heading" class="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-sm space-y-6">
+      <div>
+        <h2 id="about-heading" class="text-2xl font-extrabold text-slate-900">About SafePath &amp; Optimization Methodology</h2>
+        <p class="text-xs text-slate-500 mt-1">Academic background, transparent mathematical formulations, and Python concept mapping.</p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-5 text-xs text-slate-700">
+        <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2">
+          <h3 class="font-bold text-sm text-blue-950">Research Question</h3>
+          <p class="leading-relaxed">
+            <em>&ldquo;How can personal safety and travel time be jointly optimized in urban pedestrian navigation, and how sensitive is the route recommendation to changing safety factor weights?&rdquo;</em>
+          </p>
+        </div>
+        <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2">
+          <h3 class="font-bold text-sm text-blue-950">Python Concepts Demonstrated</h3>
+          <ul class="space-y-1 list-disc list-inside">
+            <li><strong>Dictionaries &amp; Lists:</strong> Adjacency graph &amp; segment attributes</li>
+            <li><strong>Functions:</strong> Modular scoring, pathfinding &amp; Pareto filter</li>
+            <li><strong>Conditionals:</strong> Soft high-risk thresholds &amp; time-of-day adaptation</li>
+            <li><strong>File Handling:</strong> JSON serialization &amp; safety report export</li>
+          </ul>
+        </div>
+        <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2">
+          <h3 class="font-bold text-sm text-blue-950">Extensibility Roadmap</h3>
+          <p class="leading-relaxed">
+            Designed with decoupled scoring and routing functions so simulated 0–10 segment arrays can be swapped with live OpenStreetMap Overpass lighting tags, GPS telemetry, and municipal crime APIs.
+          </p>
+        </div>
+      </div>
+
+      <!-- Collapsible Methodology Section -->
+      <details class="group border border-slate-200 rounded-2xl bg-slate-50 overflow-hidden" open>
+        <summary class="cursor-pointer px-5 py-4 font-bold text-sm text-slate-900 flex items-center justify-between hover:bg-slate-100 transition focus-ring">
+          <span>Methodology &amp; Transparent Mathematical Formulas (Click to Collapse / Expand)</span>
+          <span class="text-xs text-blue-800 font-semibold group-open:rotate-180 transition-transform">&#9660;</span>
+        </summary>
+        <div class="px-5 pb-6 pt-2 border-t border-slate-200 bg-white text-xs text-slate-700 space-y-4 leading-relaxed">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+              <h4 class="font-bold text-slate-900">1. Segment Safety Score S(e) &isin; [0, 100]</h4>
+              <p>Each factor is scored 0–10 (higher = safer, with isolation and historical incident risk inverted as <code>10 - value</code>). Weights are normalized so &Sigma;w&#7522; = 1:</p>
+              <pre class="bg-slate-900 text-emerald-300 p-3 rounded-lg font-mono text-[11px] overflow-x-auto">S(e) = 10 &times; (w_light&middot;F_light + w_crowd&middot;F_crowd + w_cctv&middot;F_cctv
+            + w_emerg&middot;F_emerg + w_isol&middot;(10 - isol) + w_risk&middot;(10 - risk))</pre>
+              <p>Time-of-day modifies effective lighting and crowd density on poorly lit or park-adjacent corridors. Any segment with <code>S(e) &lt; 40</code> is classified as <strong>High-Risk</strong>.</p>
+            </div>
+
+            <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+              <h4 class="font-bold text-slate-900">2. Route-Level Aggregation</h4>
+              <p>For a candidate route <code>P = (e&#8321;, &hellip;, e&#8342;)</code>:</p>
+              <pre class="bg-slate-900 text-emerald-300 p-3 rounded-lg font-mono text-[11px] overflow-x-auto">Length(P) = &Sigma; d(e)    Time(P) = &Sigma; t(e)
+Safety(P) = [&Sigma; S(e) &middot; d(e)] / Length(P)</pre>
+              <p>Candidate simple paths are discovered via bounded graph search + weighted Dijkstra passes, then evaluated for Pareto dominance in <code>(Safety(P), -Time(P))</code>.</p>
+            </div>
+
+            <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+              <h4 class="font-bold text-slate-900">3. Comparison of Strategies 1–3</h4>
+              <ul class="space-y-1.5">
+                <li><strong>Shortest/Fastest:</strong> Minimizes <code>Time(P)</code> purely.</li>
+                <li><strong>Safety-Only:</strong> Maximizes <code>Safety(P)</code> purely, ignoring travel time penalties.</li>
+                <li><strong>Fixed Weighted:</strong> Minimizes <code>w_s&middot;(1 - Safety(P)/100) + w_t&middot;(Time(P)/Time_max)</code> using static slider weights (default <code>0.70 / 0.30</code>) with no segment-level risk threshold.</li>
+              </ul>
+            </div>
+
+            <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+              <h4 class="font-bold text-slate-900">4. Proposed Adaptive Multi-Objective Utility</h4>
+              <pre class="bg-slate-900 text-emerald-300 p-3 rounded-lg font-mono text-[11px] overflow-x-auto">U_safe(P) = (S(P) - S_min) / (S_max - S_min)
+U_time(P) = (T_max - T(P)) / (T_max - T_min)
+Utility(P) = w_s_adapt &middot; U_safe(P) + w_t_adapt &middot; U_time(P) + 0.12 &middot; (min_e S(e)/100)</pre>
+              <p><strong>Adaptation &amp; Soft Constraint:</strong> Night adds +0.22 to safety weight, Evening adds +0.10, active disruptions add +0.12, and user Risk Preference sets the baseline. Candidate paths with <code>HighRiskSegments &gt; 0</code> are excluded unless no zero-risk path exists.</p>
+            </div>
+          </div>
+        </div>
+      </details>
+    </section>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-slate-900 text-slate-300 border-t border-slate-800 mt-12">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 text-xs">
+      <div class="space-y-1">
+        <p class="font-bold text-white text-sm">SafePath – Personal Safety Route Planner</p>
+        <p class="text-slate-400">
+          Objectives: Recommend safer multi-factor routes &middot; Compare safety vs. travel time &middot; Analyze factor sensitivity &amp; robustness.
+        </p>
+      </div>
+      <div class="px-3.5 py-2 rounded-xl bg-slate-800 border border-slate-700 text-emerald-300 font-medium">
+        Simulation using predefined safety data &ndash; can be extended with real GPS/crime APIs
+      </div>
+    </div>
+  </footer>
+
+  <!-- VANILLA JAVASCRIPT APPLICATION -->
+  <script>
+    (function () {
+      'use strict';
+
+      // =========================================================================
+      // 1. BANGALORE CITY GRAPH DATA (12 Locations, 26 Multi-Segment Roads)
+      // =========================================================================
+      const LOCATIONS = [
+        { id: 'malleshwaram', name: 'Malleshwaram Circle', area: 'North-West', x: 165, y: 105 },
+        { id: 'majestic', name: 'Kempegowda Bus Stn (Majestic)', area: 'Central Transit', x: 195, y: 235 },
+        { id: 'vidhana', name: 'Vidhana Soudha / Cubbon Park', area: 'Civic Core', x: 380, y: 195 },
+        { id: 'mg_road', name: 'MG Road Metro Station', area: 'CBD / Commercial', x: 520, y: 215 },
+        { id: 'ulsoor', name: 'Ulsoor Lake / Halasuru', area: 'East-Central', x: 675, y: 165 },
+        { id: 'indiranagar', name: 'Indiranagar 100ft Road', area: 'East Commercial', x: 810, y: 225 },
+        { id: 'vv_puram', name: 'VV Puram / Jain University', area: 'South-West Core', x: 220, y: 375 },
+        { id: 'lalbagh', name: 'Lalbagh Botanical Garden', area: 'South Park', x: 355, y: 385 },
+        { id: 'shanthinagar', name: 'Shanthinagar TTMC', area: 'Central-South', x: 475, y: 325 },
+        { id: 'koramangala', name: 'Koramangala 5th Block', area: 'South-East Hub', x: 675, y: 410 },
+        { id: 'jayanagar', name: 'Jayanagar 4th Block', area: 'South Residential', x: 345, y: 485 },
+        { id: 'silk_board', name: 'Silk Board Junction', area: 'Outer Ring South', x: 660, y: 495 },
+      ];
+
+      // Base segment scores are 0–10.
+      // Note: isolation (0-10, higher = MORE isolated) & incidentRisk (0-10, higher = MORE historical risk)
+      // are inverted during scoring as (10 - value).
+      const BASE_EDGES = [
+        { id: 'e1', from: 'malleshwaram', to: 'majestic', road: 'Sampige Main Rd', dist: 2.6, time: 11, lighting: 8.4, crowd: 8.2, cctv: 7.8, emergency: 7.6, isolation: 2.0, incidentRisk: 2.2, nightLightDrop: 0.5, nightCrowdDrop: 1.5, police: 1, hosp: 1 },
+        { id: 'e2', from: 'malleshwaram', to: 'vidhana', road: 'Sankey Tank Boulevard', dist: 3.1, time: 13, lighting: 6.2, crowd: 5.4, cctv: 5.5, emergency: 6.5, isolation: 4.5, incidentRisk: 3.4, nightLightDrop: 1.6, nightCrowdDrop: 2.4, police: 1, hosp: 0 },
+        { id: 'e3', from: 'malleshwaram', to: 'ulsoor', road: 'Palace Perimeter Bypass', dist: 5.0, time: 16, lighting: 3.8, crowd: 2.8, cctv: 3.0, emergency: 3.8, isolation: 7.5, incidentRisk: 6.8, nightLightDrop: 1.8, nightCrowdDrop: 1.6, police: 0, hosp: 0 },
+        { id: 'e4', from: 'majestic', to: 'vidhana', road: 'KG Rd – Police HQ Ave', dist: 2.4, time: 11, lighting: 9.1, crowd: 8.5, cctv: 9.2, emergency: 9.5, isolation: 1.5, incidentRisk: 1.6, nightLightDrop: 0.3, nightCrowdDrop: 1.2, police: 2, hosp: 1 },
+        { id: 'e5', from: 'majestic', to: 'vv_puram', road: 'Chamarajpet Market Link', dist: 2.5, time: 10, lighting: 6.4, crowd: 7.2, cctv: 5.2, emergency: 6.4, isolation: 3.8, incidentRisk: 4.2, nightLightDrop: 1.5, nightCrowdDrop: 2.6, police: 1, hosp: 1 },
+        { id: 'e6', from: 'majestic', to: 'shanthinagar', road: 'Goods Shed Underpass Shortcut', dist: 2.9, time: 9, lighting: 2.6, crowd: 3.0, cctv: 2.0, emergency: 4.0, isolation: 8.2, incidentRisk: 7.8, nightLightDrop: 1.4, nightCrowdDrop: 1.8, police: 0, hosp: 0 },
+        { id: 'e7', from: 'vidhana', to: 'mg_road', road: 'Kasturba – MG Metro Rd', dist: 2.0, time: 9, lighting: 9.4, crowd: 8.9, cctv: 9.5, emergency: 9.2, isolation: 1.2, incidentRisk: 1.4, nightLightDrop: 0.2, nightCrowdDrop: 1.0, police: 2, hosp: 1 },
+        { id: 'e8', from: 'vidhana', to: 'shanthinagar', road: 'Richmond Circle Connector', dist: 2.6, time: 11, lighting: 6.8, crowd: 6.2, cctv: 6.4, emergency: 7.0, isolation: 3.6, incidentRisk: 3.5, nightLightDrop: 1.0, nightCrowdDrop: 1.8, police: 1, hosp: 1 },
+        { id: 'e9', from: 'vidhana', to: 'lalbagh', road: 'KH Rd Hospital Corridor', dist: 3.2, time: 13, lighting: 7.5, crowd: 6.8, cctv: 6.9, emergency: 8.8, isolation: 2.8, incidentRisk: 2.6, nightLightDrop: 0.8, nightCrowdDrop: 1.8, police: 1, hosp: 2 },
+        { id: 'e10', from: 'mg_road', to: 'ulsoor', road: 'Trinity – Dickenson Rd', dist: 2.3, time: 10, lighting: 8.9, crowd: 8.4, cctv: 8.6, emergency: 8.2, isolation: 1.8, incidentRisk: 2.0, nightLightDrop: 0.4, nightCrowdDrop: 1.3, police: 1, hosp: 1 },
+        { id: 'e11', from: 'mg_road', to: 'shanthinagar', road: 'Brigade – Langford Rd', dist: 2.5, time: 11, lighting: 8.7, crowd: 8.3, cctv: 8.5, emergency: 7.9, isolation: 2.0, incidentRisk: 2.3, nightLightDrop: 0.4, nightCrowdDrop: 1.2, police: 1, hosp: 1 },
+        { id: 'e12', from: 'mg_road', to: 'koramangala', road: 'Residency – Ejipura Arterial', dist: 4.4, time: 17, lighting: 7.5, crowd: 7.3, cctv: 7.0, emergency: 7.0, isolation: 3.2, incidentRisk: 3.4, nightLightDrop: 0.7, nightCrowdDrop: 1.5, police: 1, hosp: 1 },
+        { id: 'e13', from: 'ulsoor', to: 'indiranagar', road: 'CMH Rd Metro Boulevard', dist: 2.4, time: 10, lighting: 9.2, crowd: 9.0, cctv: 8.8, emergency: 8.1, isolation: 1.5, incidentRisk: 1.8, nightLightDrop: 0.3, nightCrowdDrop: 1.1, police: 1, hosp: 1 },
+        { id: 'e14', from: 'ulsoor', to: 'koramangala', road: 'Domlur Service Flyover Lane', dist: 3.7, time: 12, lighting: 3.4, crowd: 2.5, cctv: 2.6, emergency: 4.0, isolation: 7.8, incidentRisk: 7.0, nightLightDrop: 1.6, nightCrowdDrop: 1.5, police: 0, hosp: 0 },
+        { id: 'e15', from: 'indiranagar', to: 'koramangala', road: '100ft Rd – Inner Ring Commercial', dist: 3.8, time: 16, lighting: 8.9, crowd: 8.7, cctv: 8.4, emergency: 7.8, isolation: 1.8, incidentRisk: 2.2, nightLightDrop: 0.4, nightCrowdDrop: 1.2, police: 1, hosp: 1 },
+        { id: 'e16', from: 'indiranagar', to: 'silk_board', road: 'ORR Service Bypass', dist: 5.9, time: 18, lighting: 3.6, crowd: 2.2, cctv: 2.8, emergency: 3.5, isolation: 8.4, incidentRisk: 7.5, nightLightDrop: 1.8, nightCrowdDrop: 1.4, police: 0, hosp: 0 },
+        { id: 'e17', from: 'vv_puram', to: 'lalbagh', road: 'KR Rd – Minerva Circle', dist: 1.9, time: 8, lighting: 7.6, crowd: 7.8, cctv: 6.8, emergency: 7.4, isolation: 2.6, incidentRisk: 2.8, nightLightDrop: 0.8, nightCrowdDrop: 2.0, police: 1, hosp: 1 },
+        { id: 'e18', from: 'vv_puram', to: 'jayanagar', road: 'Basavanagudi – South End Rd', dist: 2.8, time: 12, lighting: 8.2, crowd: 7.4, cctv: 7.2, emergency: 7.9, isolation: 2.2, incidentRisk: 2.1, nightLightDrop: 0.6, nightCrowdDrop: 1.7, police: 1, hosp: 1 },
+        { id: 'e19', from: 'lalbagh', to: 'shanthinagar', road: 'Lalbagh East Park Wall Lane', dist: 2.1, time: 8, lighting: 3.1, crowd: 2.8, cctv: 2.4, emergency: 4.6, isolation: 7.8, incidentRisk: 6.8, nightLightDrop: 1.8, nightCrowdDrop: 1.8, police: 0, hosp: 0 },
+        { id: 'e20', from: 'lalbagh', to: 'jayanagar', road: 'Ashoka Pillar – 11th Main', dist: 2.3, time: 10, lighting: 8.8, crowd: 8.5, cctv: 8.0, emergency: 8.2, isolation: 1.6, incidentRisk: 1.8, nightLightDrop: 0.4, nightCrowdDrop: 1.4, police: 1, hosp: 1 },
+        { id: 'e21', from: 'lalbagh', to: 'koramangala', road: 'Dairy Circle Industrial Cut', dist: 3.3, time: 11, lighting: 2.8, crowd: 2.5, cctv: 2.1, emergency: 4.4, isolation: 8.2, incidentRisk: 7.4, nightLightDrop: 1.5, nightCrowdDrop: 1.5, police: 0, hosp: 0 },
+        { id: 'e22', from: 'shanthinagar', to: 'koramangala', road: 'Adugodi Crosslane Shortcut', dist: 2.8, time: 9, lighting: 3.8, crowd: 3.6, cctv: 3.3, emergency: 4.9, isolation: 6.7, incidentRisk: 6.4, nightLightDrop: 1.7, nightCrowdDrop: 1.9, police: 0, hosp: 1 },
+        { id: 'e23', from: 'jayanagar', to: 'koramangala', road: 'BTM – Bannerghatta Main Rd', dist: 4.3, time: 17, lighting: 8.2, crowd: 8.0, cctv: 7.7, emergency: 8.5, isolation: 2.2, incidentRisk: 2.5, nightLightDrop: 0.5, nightCrowdDrop: 1.4, police: 1, hosp: 2 },
+        { id: 'e24', from: 'jayanagar', to: 'silk_board', road: 'Jayadeva Hospital – BTM Rd', dist: 4.5, time: 18, lighting: 8.5, crowd: 8.3, cctv: 8.1, emergency: 9.0, isolation: 2.0, incidentRisk: 2.3, nightLightDrop: 0.4, nightCrowdDrop: 1.3, police: 1, hosp: 2 },
+        { id: 'e25', from: 'koramangala', to: 'silk_board', road: 'Hosur Rd – Madivala Hub', dist: 2.7, time: 11, lighting: 7.2, crowd: 8.4, cctv: 7.0, emergency: 7.5, isolation: 2.6, incidentRisk: 4.1, nightLightDrop: 0.6, nightCrowdDrop: 1.6, police: 1, hosp: 1 },
+        { id: 'e26', from: 'vv_puram', to: 'shanthinagar', road: 'Wilson Garden Alleyway', dist: 2.9, time: 10, lighting: 5.5, crowd: 4.9, cctv: 4.2, emergency: 5.6, isolation: 5.1, incidentRisk: 4.7, nightLightDrop: 1.6, nightCrowdDrop: 2.0, police: 0, hosp: 0 },
+      ];
+
+      const POPULAR_PRESETS = [
+        { label: 'Majestic → Koramangala', from: 'majestic', to: 'koramangala' },
+        { label: 'VV Puram → Indiranagar', from: 'vv_puram', to: 'indiranagar' },
+        { label: 'Malleshwaram → Jayanagar', from: 'malleshwaram', to: 'jayanagar' },
+        { label: 'MG Road → Silk Board', from: 'mg_road', to: 'silk_board' },
+        { label: 'Vidhana Soudha → Koramangala', from: 'vidhana', to: 'koramangala' },
+        { label: 'Lalbagh → Indiranagar', from: 'lalbagh', to: 'indiranagar' },
+      ];
+
+      const FACTOR_META = [
+        { key: 'lighting', label: 'Street Lighting Quality', defaultWeight: 0.25, color: '#f59e0b' },
+        { key: 'crowd', label: 'Pedestrian / Crowd Density', defaultWeight: 0.15, color: '#0ea5e9' },
+        { key: 'cctv', label: 'CCTV Coverage', defaultWeight: 0.15, color: '#6366f1' },
+        { key: 'emergency', label: 'Police & Emergency Access', defaultWeight: 0.15, color: '#8b5cf6' },
+        { key: 'isolationInv', label: 'Low Road Isolation (Inverse)', defaultWeight: 0.15, color: '#14b8a6' },
+        { key: 'riskInv', label: 'Low Incident Risk (Inverse)', defaultWeight: 0.15, color: '#10b981' },
+      ];
+
+      const STRATEGY_META = {
+        shortest: { name: '1. Shortest / Fastest Route', short: 'Shortest', color: '#0284c7', badgeBg: 'bg-sky-100 text-sky-900 border-sky-200' },
+        safety: { name: '2. Safety-Only Route', short: 'Safety-Only', color: '#e11d48', badgeBg: 'bg-rose-100 text-rose-900 border-rose-200' },
+        fixed: { name: '3. Fixed Weighted Route', short: 'Fixed Weighted', color: '#d97706', badgeBg: 'bg-amber-100 text-amber-900 border-amber-200' },
+        adaptive: { name: '4. Adaptive Multi-Objective', short: 'Adaptive (Ours)', color: '#059669', badgeBg: 'bg-emerald-100 text-emerald-900 border-emerald-300' },
+      };
+
+      // =========================================================================
+      // 2. APPLICATION STATE
+      // =========================================================================
+      const state = {
+        source: 'majestic',
+        dest: 'koramangala',
+        timeOfDay: 'night', // 'day' | 'evening' | 'night'
+        riskPreference: 50, // 0..100
+        fixedSafetyWeight: 0.70, // 0..1
+        factorWeights: {
+          lighting: 0.25,
+          crowd: 0.15,
+          cctv: 0.15,
+          emergency: 0.15,
+          isolationInv: 0.15,
+          riskInv: 0.15,
+        },
+        overallSensBalance: 50, // 0..100 (used in sensitivity panel)
+        disruptions: {}, // { edgeId: { lightingDelta, riskDelta, crowdDelta, reasons: [] } }
+        colorMode: 'safety', // 'safety' | 'strategy'
+        mapFocus: 'all', // 'all' | 'shortest' | 'safety' | 'fixed' | 'adaptive'
+        chartType: 'scatter', // 'scatter' | 'bar'
+        inspectStrategy: 'adaptive',
+        baselineSnapshot: null, // stores pre-disruption results for comparison
+        lastEvaluation: null,
+        baselineRecommendationId: null,
+      };
+
+      let charts = {
+        safetyTime: null,
+        radar: null,
+        tornado: null,
+      };
+
+      let mapHoverState = {
+        hoveredEdgeId: null,
+        hoveredNodeId: null,
+        hitSegments: [],
+      };
+
+      // =========================================================================
+      // 3. SAFETY SCORING & MULTI-OBJECTIVE OPTIMIZATION ENGINE
+      // =========================================================================
+      function clamp(val, min, max) {
+        return Math.max(min, Math.min(max, val));
+      }
+
+      function normalizeWeights(rawWeights) {
+        const sum = Object.values(rawWeights).reduce((a, b) => a + b, 0);
+        const safeSum = sum > 0 ? sum : 1;
+        const norm = {};
+        for (const k of Object.keys(rawWeights)) {
+          norm[k] = rawWeights[k] / safeSum;
+        }
+        return norm;
+      }
+
+      function computeEffectiveEdge(edge, timeOfDay, disruptions, normWeights) {
+        // Time-of-day simulation
+        let lightFactor = edge.lighting;
+        let crowdFactor = edge.crowd;
+        let riskFactor = edge.incidentRisk;
+
+        if (timeOfDay === 'evening') {
+          lightFactor -= edge.nightLightDrop * 0.45;
+          crowdFactor -= edge.nightCrowdDrop * 0.35;
+          riskFactor += edge.isolation * 0.08;
+        } else if (timeOfDay === 'night') {
+          lightFactor -= edge.nightLightDrop;
+          crowdFactor -= edge.nightCrowdDrop;
+          riskFactor += edge.isolation * 0.16;
+        }
+
+        // Apply active robustness disruptions if any
+        const dis = disruptions[edge.id];
+        if (dis) {
+          lightFactor += dis.lightingDelta;
+          crowdFactor += dis.crowdDelta;
+          riskFactor += dis.riskDelta;
+        }
+
+        const lighting = clamp(lightFactor, 0.5, 10);
+        const crowd = clamp(crowdFactor, 0.5, 10);
+        const cctv = clamp(edge.cctv, 0.5, 10);
+        const emergency = clamp(edge.emergency, 0.5, 10);
+        const isolation = clamp(edge.isolation, 0.5, 10);
+        const incidentRisk = clamp(riskFactor, 0.5, 10);
+
+        const isolationInv = 10 - isolation;
+        const riskInv = 10 - incidentRisk;
+
+        const weighted01 =
+          normWeights.lighting * (lighting / 10) +
+          normWeights.crowd * (crowd / 10) +
+          normWeights.cctv * (cctv / 10) +
+          normWeights.emergency * (emergency / 10) +
+          normWeights.isolationInv * (isolationInv / 10) +
+          normWeights.riskInv * (riskInv / 10);
+
+        const safetyScore = Number((weighted01 * 100).toFixed(1));
+
+        return {
+          ...edge,
+          eff: {
+            lighting: Number(lighting.toFixed(1)),
+            crowd: Number(crowd.toFixed(1)),
+            cctv: Number(cctv.toFixed(1)),
+            emergency: Number(emergency.toFixed(1)),
+            isolation: Number(isolation.toFixed(1)),
+            incidentRisk: Number(incidentRisk.toFixed(1)),
+            isolationInv: Number(isolationInv.toFixed(1)),
+            riskInv: Number(riskInv.toFixed(1)),
+          },
+          safetyScore,
+          isHighRisk: safetyScore < 40,
+          isDisrupted: Boolean(dis),
+        };
+      }
+
+      function buildAdjacencyList(effectiveEdges) {
+        const adj = {};
+        LOCATIONS.forEach((loc) => {
+          adj[loc.id] = [];
+        });
+        effectiveEdges.forEach((edge) => {
+          adj[edge.from].push({ to: edge.to, edge });
+          adj[edge.to].push({ to: edge.from, edge });
+        });
+        return adj;
+      }
+
+      // Bounded DFS to enumerate all simple paths up to maxHops (fast on 12-node graph)
+      function enumerateCandidatePaths(adj, source, dest, maxHops = 6) {
+        const paths = [];
+        const visited = new Set([source]);
+
+        function dfs(curr, nodeSeq, edgeSeq) {
+          if (paths.length >= 260) return;
+          if (curr === dest) {
+            paths.push({ nodes: [...nodeSeq], edges: [...edgeSeq] });
+            return;
+          }
+          if (edgeSeq.length >= maxHops) return;
+
+          // Order neighbors heuristically toward dest / low hops
+          const neighbors = adj[curr];
+          for (let i = 0; i < neighbors.length; i++) {
+            const { to, edge } = neighbors[i];
+            if (!visited.has(to)) {
+              visited.add(to);
+              nodeSeq.push(to);
+              edgeSeq.push(edge);
+              dfs(to, nodeSeq, edgeSeq);
+              edgeSeq.pop();
+              nodeSeq.pop();
+              visited.delete(to);
+            }
+          }
+        }
+
+        dfs(source, [source], []);
+
+        // Fallback Dijkstra if source & dest require > maxHops
+        if (paths.length === 0) {
+          const fallback = dijkstraPath(adj, source, dest, (e) => e.time);
+          if (fallback) paths.push(fallback);
+        }
+        return paths;
+      }
+
+      function dijkstraPath(adj, source, dest, weightFn) {
+        const dist = {};
+        const prev = {};
+        const unvisited = new Set(LOCATIONS.map((l) => l.id));
+        LOCATIONS.forEach((l) => { dist[l.id] = Infinity; });
+        dist[source] = 0;
+
+        while (unvisited.size > 0) {
+          let u = null;
+          let best = Infinity;
+          unvisited.forEach((id) => {
+            if (dist[id] < best) {
+              best = dist[id];
+              u = id;
+            }
+          });
+          if (u === null || u === dest || best === Infinity) break;
+          unvisited.delete(u);
+
+          adj[u].forEach(({ to, edge }) => {
+            if (!unvisited.has(to)) return;
+            const alt = dist[u] + weightFn(edge);
+            if (alt < dist[to]) {
+              dist[to] = alt;
+              prev[to] = { node: u, edge };
+            }
+          });
+        }
+
+        if (!prev[dest] && source !== dest) return null;
+        const nodes = [dest];
+        const edges = [];
+        let curr = dest;
+        while (curr !== source && prev[curr]) {
+          edges.unshift(prev[curr].edge);
+          nodes.unshift(prev[curr].node);
+          curr = prev[curr].node;
+        }
+        return { nodes, edges };
+      }
+
+      function scoreCandidatePath(path) {
+        const totalDist = path.edges.reduce((sum, e) => sum + e.dist, 0);
+        const totalTime = path.edges.reduce((sum, e) => sum + e.time, 0);
+        const safeDist = totalDist > 0 ? totalDist : 1;
+
+        const weightedSafety = path.edges.reduce((sum, e) => sum + e.safetyScore * e.dist, 0) / safeDist;
+        const minSegSafety = Math.min(...path.edges.map((e) => e.safetyScore));
+        const highRiskCount = path.edges.filter((e) => e.isHighRisk).length;
+
+        const factorAvgs = {
+          lighting: path.edges.reduce((s, e) => s + e.eff.lighting * e.dist, 0) / safeDist,
+          crowd: path.edges.reduce((s, e) => s + e.eff.crowd * e.dist, 0) / safeDist,
+          cctv: path.edges.reduce((s, e) => s + e.eff.cctv * e.dist, 0) / safeDist,
+          emergency: path.edges.reduce((s, e) => s + e.eff.emergency * e.dist, 0) / safeDist,
+          isolationInv: path.edges.reduce((s, e) => s + e.eff.isolationInv * e.dist, 0) / safeDist,
+          riskInv: path.edges.reduce((s, e) => s + e.eff.riskInv * e.dist, 0) / safeDist,
+        };
+
+        return {
+          key: path.nodes.join('->'),
+          nodes: path.nodes,
+          edges: path.edges,
+          totalDist: Number(totalDist.toFixed(2)),
+          totalTime: Number(totalTime.toFixed(1)),
+          safetyScore: Number(weightedSafety.toFixed(1)),
+          minSegSafety: Number(minSegSafety.toFixed(1)),
+          highRiskCount,
+          factorAvgs: Object.fromEntries(
+            Object.entries(factorAvgs).map(([k, v]) => [k, Number(v.toFixed(1))])
+          ),
+        };
+      }
+
+      function computeParetoFrontier(candidates) {
+        return candidates.map((c) => {
+          const dominated = candidates.some(
+            (other) =>
+              other.key !== c.key &&
+              other.safetyScore >= c.safetyScore &&
+              other.totalTime <= c.totalTime &&
+              (other.safetyScore > c.safetyScore || other.totalTime < c.totalTime)
+          );
+          return { ...c, isPareto: !dominated };
+        });
+      }
+
+      function evaluateAllStrategies(params) {
+        const normWeights = normalizeWeights(params.factorWeights);
+        const effEdges = BASE_EDGES.map((e) =>
+          computeEffectiveEdge(e, params.timeOfDay, params.disruptions, normWeights)
+        );
+        const adj = buildAdjacencyList(effEdges);
+        const rawCandidates = enumerateCandidatePaths(adj, params.source, params.dest, 6);
+
+        // Also ensure Strategy-specific Dijkstra paths are included in candidate pool
+        const extraShortest = dijkstraPath(adj, params.source, params.dest, (e) => e.time);
+        const extraSafe = dijkstraPath(adj, params.source, params.dest, (e) => (100 - e.safetyScore + 0.5) * e.dist);
+        const extraFixed = dijkstraPath(
+          adj,
+          params.source,
+          params.dest,
+          (e) =>
+            params.fixedSafetyWeight * ((100 - e.safetyScore) / 100) * e.dist +
+            (1 - params.fixedSafetyWeight) * (e.time / 12)
+        );
+
+        const candidateMap = new Map();
+        [...rawCandidates, extraShortest, extraSafe, extraFixed].forEach((p) => {
+          if (!p) return;
+          const scored = scoreCandidatePath(p);
+          if (!candidateMap.has(scored.key)) candidateMap.set(scored.key, scored);
+        });
+
+        const candidates = computeParetoFrontier(Array.from(candidateMap.values()));
+
+        const times = candidates.map((c) => c.totalTime);
+        const safeties = candidates.map((c) => c.safetyScore);
+        const minTime = Math.min(...times);
+        const maxTime = Math.max(...times);
+        const minSafety = Math.min(...safeties);
+        const maxSafety = Math.max(...safeties);
+        const timeSpan = maxTime > minTime ? maxTime - minTime : 1;
+        const safetySpan = maxSafety > minSafety ? maxSafety - minSafety : 1;
+
+        // 1. Shortest / Fastest Route (pure minimization of travel time)
+        const shortest = [...candidates].sort((a, b) => a.totalTime - b.totalTime || b.safetyScore - a.safetyScore)[0];
+
+        // 2. Safety-Only Route (pure maximization of safety score, ignoring time)
+        const safetyOnly = [...candidates].sort((a, b) => b.safetyScore - a.safetyScore || a.totalTime - b.totalTime)[0];
+
+        // 3. Fixed Weighted Safety + Distance/Time Route
+        // Static weighted sum over normalized time and safety deficit
+        const wFixedSafe = params.fixedSafetyWeight;
+        const wFixedTime = Number((1 - wFixedSafe).toFixed(2));
+        const fixedWeighted = [...candidates].sort((a, b) => {
+          const costA = wFixedSafe * (1 - a.safetyScore / 100) + wFixedTime * (a.totalTime / (maxTime || 1));
+          const costB = wFixedSafe * (1 - b.safetyScore / 100) + wFixedTime * (b.totalTime / (maxTime || 1));
+          return costA - costB;
+        })[0];
+
+        // 4. Adaptive / Multi-Objective Route (Proposed Method)
+        // Automatically adapts weights based on:
+        //   - Risk preference slider (0=Time-Priority -> 0.35, 50=Balanced -> 0.58, 100=Cautious -> 0.80)
+        //   - Time of day (Night -> +0.20, Evening -> +0.10)
+        //   - Sensitivity overall emphasis offset
+        //   - Active disruption environment check (+0.12 if disruptions exist)
+        const prefBase = 0.30 + (params.riskPreference / 100) * 0.40;
+        const timeBoost = params.timeOfDay === 'night' ? 0.18 : params.timeOfDay === 'evening' ? 0.09 : 0.0;
+        const sensDelta = ((params.overallSensBalance - 50) / 50) * 0.15;
+        const disruptionBoost = Object.keys(params.disruptions).length > 0 ? 0.14 : 0.0;
+
+        const adaptiveSafetyW = clamp(prefBase + timeBoost + sensDelta + disruptionBoost, 0.25, 0.88);
+        const adaptiveTimeW = 1 - adaptiveSafetyW;
+
+        // Soft constraint: never allow high-risk segments (score < 40) unless no zero-risk alternative exists
+        const zeroRiskCandidates = candidates.filter((c) => c.highRiskCount === 0);
+        const minPossibleHighRisk = Math.min(...candidates.map((c) => c.highRiskCount));
+        const adaptivePool = zeroRiskCandidates.length > 0
+          ? zeroRiskCandidates
+          : candidates.filter((c) => c.highRiskCount === minPossibleHighRisk);
+
+        const refMinTime = shortest.totalTime;
+        const refMaxTime = Math.max(safetyOnly.totalTime, refMinTime + 1);
+        const refTimeSpan = refMaxTime - refMinTime;
+        const refMinSafety = shortest.safetyScore;
+        const refMaxSafety = Math.max(safetyOnly.safetyScore, refMinSafety + 1);
+        const refSafetySpan = refMaxSafety - refMinSafety;
+
+        const scoredAdaptive = adaptivePool.map((c) => {
+          const uSafety = clamp((c.safetyScore - refMinSafety) / refSafetySpan, 0, 1);
+          const uInvTime = clamp((refMaxTime - c.totalTime) / refTimeSpan, 0, 1);
+          const weakestLinkBonus = (c.minSegSafety / 100) * 0.12;
+          const paretoBonus = c.isPareto ? 0.05 : 0;
+          const utility = adaptiveSafetyW * uSafety + adaptiveTimeW * uInvTime + weakestLinkBonus + paretoBonus;
+          return { ...c, utility: Number(utility.toFixed(4)) };
+        });
+
+        scoredAdaptive.sort((a, b) => b.utility - a.utility || b.safetyScore - a.safetyScore);
+        const adaptive = scoredAdaptive[0];
+
+        // Generate Pareto trade-off explanation
+        const timeDiffVsFastest = Number((adaptive.totalTime - shortest.totalTime).toFixed(1));
+        const safetyGainVsFastest = Number((adaptive.safetyScore - shortest.safetyScore).toFixed(1));
+        const timeSavedVsSafetyOnly = Number((safetyOnly.totalTime - adaptive.totalTime).toFixed(1));
+        const riskAvoided = shortest.highRiskCount - adaptive.highRiskCount;
+
+        let explanation = '';
+        if (adaptive.key === shortest.key) {
+          explanation = `For this corridor, the Fastest Route already achieves a strong Safety Score of ${adaptive.safetyScore}/100 with ${adaptive.highRiskCount} high-risk segments, making it Pareto-optimal with zero detour needed.`;
+        } else {
+          const parts = [];
+          parts.push(`Adds ${timeDiffVsFastest > 0 ? '+' + timeDiffVsFastest + ' min' : '0 min'} compared to Fastest (${shortest.totalTime} min)`);
+          parts.push(`while improving Safety Score by +${safetyGainVsFastest} pts (${shortest.safetyScore} → ${adaptive.safetyScore})`);
+          if (riskAvoided > 0) parts.push(`and eliminating ${riskAvoided} high-risk segment${riskAvoided > 1 ? 's' : ''}`);
+          if (timeSavedVsSafetyOnly > 0.5) parts.push(`— saving ${timeSavedVsSafetyOnly} min vs. Safety-Only (${safetyOnly.totalTime} min)`);
+          explanation = parts.join(' ') + '.';
+        }
+
+        return {
+          normWeights,
+          effEdges,
+          candidates,
+          strategies: {
+            shortest,
+            safety: safetyOnly,
+            fixed: fixedWeighted,
+            adaptive,
+          },
+          adaptiveMeta: {
+            adaptiveSafetyW: Number(adaptiveSafetyW.toFixed(2)),
+            adaptiveTimeW: Number(adaptiveTimeW.toFixed(2)),
+            softConstraintApplied: zeroRiskCandidates.length > 0 && candidates.some((c) => c.highRiskCount > 0),
+            explanation,
+          },
+        };
+      }
+
+      // =========================================================================
+      // 4. SENSITIVITY TORNADO COMPUTATION
+      // =========================================================================
+      function computeSensitivityTornado() {
+        const results = FACTOR_META.map((f) => {
+          const lowWeights = { ...state.factorWeights, [f.key]: 0.02 };
+          const highWeights = { ...state.factorWeights, [f.key]: 0.65 };
+
+          const evalLow = evaluateAllStrategies({ ...state, factorWeights: lowWeights });
+          const evalHigh = evaluateAllStrategies({ ...state, factorWeights: highWeights });
+
+          const lowScore = evalLow.strategies.adaptive.safetyScore;
+          const highScore = evalHigh.strategies.adaptive.safetyScore;
+          const baseScore = state.lastEvaluation.strategies.adaptive.safetyScore;
+
+          return {
+            key: f.key,
+            label: f.label,
+            lowDelta: Number((lowScore - baseScore).toFixed(1)),
+            highDelta: Number((highScore - baseScore).toFixed(1)),
+            swing: Number(Math.abs(highScore - lowScore).toFixed(1)),
+          };
+        });
+
+        results.sort((a, b) => b.swing - a.swing);
+        return results;
+      }
+
+      // =========================================================================
+      // 5. DOM RENDERING & INTERACTIVE VISUALIZATIONS
+      // =========================================================================
+      function getLocationName(id) {
+        const found = LOCATIONS.find((l) => l.id === id);
+        return found ? found.name : id;
+      }
+
+      function safetyBadgeClass(score) {
+        if (score >= 70) return 'bg-emerald-100 text-emerald-800 border-emerald-200';
+        if (score >= 40) return 'bg-amber-100 text-amber-800 border-amber-200';
+        return 'bg-red-100 text-red-800 border-red-200';
+      }
+
+      function safetyHexColor(score) {
+        if (score >= 70) return '#10b981';
+        if (score >= 40) return '#f59e0b';
+        return '#ef4444';
+      }
+
+      function initSelectors() {
+        const srcEl = document.getElementById('sourceSelect');
+        const dstEl = document.getElementById('destSelect');
+        srcEl.innerHTML = '';
+        dstEl.innerHTML = '';
+
+        LOCATIONS.forEach((loc) => {
+          const opt1 = new Option(`${loc.name} (${loc.area})`, loc.id);
+          const opt2 = new Option(`${loc.name} (${loc.area})`, loc.id);
+          srcEl.add(opt1);
+          dstEl.add(opt2);
+        });
+
+        srcEl.value = state.source;
+        dstEl.value = state.dest;
+
+        // Preset buttons
+        const presetWrap = document.getElementById('presetButtons');
+        presetWrap.innerHTML = '';
+        POPULAR_PRESETS.forEach((p) => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-blue-50 hover:border-blue-300 text-xs font-semibold text-slate-700 hover:text-blue-900 transition cursor-pointer focus-ring';
+          btn.textContent = p.label;
+          btn.addEventListener('click', () => {
+            state.source = p.from;
+            state.dest = p.to;
+            srcEl.value = p.from;
+            dstEl.value = p.to;
+            triggerFindRoutes(true);
+          });
+          presetWrap.appendChild(btn);
+        });
+
+        // Factor sensitivity sliders
+        const slidersWrap = document.getElementById('factorSlidersContainer');
+        slidersWrap.innerHTML = '';
+        FACTOR_META.forEach((f) => {
+          const row = document.createElement('div');
+          row.innerHTML = `
+            <div class="flex justify-between text-xs mb-1">
+              <label for="slider_${f.key}" class="font-semibold text-slate-700">${f.label}</label>
+              <span id="val_${f.key}" class="font-bold text-slate-900"></span>
+            </div>
+            <input id="slider_${f.key}" type="range" min="0.05" max="0.50" step="0.05" value="${state.factorWeights[f.key]}" class="w-full accent-blue-900 cursor-pointer focus-ring" />
+          `;
+          slidersWrap.appendChild(row);
+
+          const slider = row.querySelector('input');
+          slider.addEventListener('input', (e) => {
+            state.factorWeights[f.key] = parseFloat(e.target.value);
+            recomputeAndRender(false);
+          });
+        });
+
+        updateTimeButtonsUI();
+      }
+
+      function updateTimeButtonsUI() {
+        document.querySelectorAll('.time-btn').forEach((btn) => {
+          const active = btn.dataset.time === state.timeOfDay;
+          btn.className = `time-btn py-2.5 px-2 rounded-xl border text-xs font-bold transition cursor-pointer focus-ring ${
+            active
+              ? 'bg-blue-900 text-white border-blue-900 shadow-sm'
+              : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+          }`;
+          btn.setAttribute('aria-checked', String(active));
+        });
+      }
+
+      function updateSliderDisplays(normWeights) {
+        FACTOR_META.forEach((f) => {
+          const valEl = document.getElementById(`val_${f.key}`);
+          const slEl = document.getElementById(`slider_${f.key}`);
+          if (valEl) valEl.textContent = `${Math.round(normWeights[f.key] * 100)}%`;
+          if (slEl) slEl.value = state.factorWeights[f.key];
+        });
+
+        const rp = state.riskPreference;
+        const rpTag = rp <= 30 ? 'Time-Priority' : rp >= 70 ? 'Cautious' : 'Balanced';
+        document.getElementById('riskPrefLabel').textContent = `${rpTag} (${rp})`;
+        document.getElementById('riskPrefSlider').value = rp;
+
+        const fw = state.fixedSafetyWeight;
+        document.getElementById('fixedWeightLabel').textContent = `Safety ${fw.toFixed(2)} / Time ${(1 - fw).toFixed(2)}`;
+        document.getElementById('fixedWeightSlider').value = fw;
+
+        const sb = state.overallSensBalance;
+        const sbTag = sb <= 30 ? 'Time-Leaning' : sb >= 70 ? 'Safety-Leaning' : 'Balanced';
+        document.getElementById('sensSafetyVsTimeValue').textContent = `${sbTag} (${sb}%)`;
+        document.getElementById('sensSafetyVsTimeSlider').value = sb;
+      }
+
+      function renderStrategyCards(evalResult) {
+        const grid = document.getElementById('strategyCardsGrid');
+        grid.innerHTML = '';
+
+        ['shortest', 'safety', 'fixed', 'adaptive'].forEach((id) => {
+          const meta = STRATEGY_META[id];
+          const route = evalResult.strategies[id];
+          const isAdaptive = id === 'adaptive';
+
+          const card = document.createElement('article');
+          card.className = `rounded-2xl p-5 border transition flex flex-col justify-between bg-white shadow-sm relative ${
+            isAdaptive ? 'border-emerald-500 ring-2 ring-emerald-500/20' : 'border-slate-200'
+          }`;
+
+          const pathLabel = route.nodes.map((n) => LOCATIONS.find((l) => l.id === n)?.name.split(' ')[0]).join(' → ');
+
+          card.innerHTML = `
+            ${isAdaptive ? '<div class="absolute top-0 right-0 bg-emerald-600 text-white text-[10px] font-bold px-3 py-1 rounded-bl-xl rounded-tr-xl uppercase tracking-wider">Recommended</div>' : ''}
+            <div>
+              <div class="flex items-center gap-2 mb-2 pr-16">
+                <span class="w-3 h-3 rounded-full shrink-0" style="background:${meta.color}"></span>
+                <h3 class="font-bold text-sm text-slate-900 leading-snug">${meta.name}</h3>
+              </div>
+              <p class="text-[11px] text-slate-500 mb-3 truncate" title="${route.nodes.map(getLocationName).join(' → ')}">${pathLabel}</p>
+            </div>
+
+            <div class="space-y-3">
+              <div class="grid grid-cols-2 gap-2">
+                <div class="bg-slate-50 rounded-xl p-2.5 border border-slate-200">
+                  <div class="text-[10px] font-semibold text-slate-500 uppercase">Safety Score</div>
+                  <div class="text-xl font-extrabold mt-0.5 ${route.safetyScore >= 70 ? 'text-emerald-700' : route.safetyScore >= 40 ? 'text-amber-700' : 'text-red-700'}">
+                    ${route.safetyScore}<span class="text-xs font-normal text-slate-400">/100</span>
+                  </div>
+                </div>
+                <div class="bg-slate-50 rounded-xl p-2.5 border border-slate-200">
+                  <div class="text-[10px] font-semibold text-slate-500 uppercase">Travel Time</div>
+                  <div class="text-xl font-extrabold text-slate-900 mt-0.5">
+                    ${route.totalTime}<span class="text-xs font-normal text-slate-500"> min</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="flex items-center justify-between text-xs pt-1">
+                <span class="text-slate-600">Length: <strong class="text-slate-900">${route.totalDist} km</strong></span>
+                <span class="px-2 py-0.5 rounded-full border font-bold text-[11px] ${route.highRiskCount === 0 ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-red-100 text-red-800 border-red-200'}">
+                  ${route.highRiskCount} High-Risk
+                </span>
+              </div>
+
+              <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
+                <div class="h-full rounded-full transition-all duration-300" style="width:${route.safetyScore}%; background:${safetyHexColor(route.safetyScore)}"></div>
+              </div>
+
+              <button type="button" data-focus="${id}" class="focus-map-btn w-full py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-[11px] font-semibold text-slate-700 transition cursor-pointer focus-ring">
+                Highlight on Map &amp; Inspect
+              </button>
+            </div>
+          `;
+
+          card.querySelector('.focus-map-btn').addEventListener('click', () => {
+            state.mapFocus = id;
+            state.inspectStrategy = id;
+            document.getElementById('mapFocusSelect').value = id;
+            document.getElementById('segmentInspectStrategy').value = id;
+            drawCityMap();
+            renderSegmentList();
+          });
+
+          grid.appendChild(card);
+        });
+      }
+
+      function renderComparisonTable(evalResult) {
+        const tbody = document.getElementById('comparisonTableBody');
+        const s = evalResult.strategies;
+
+        const rows = [
+          { label: 'Overall Safety Score (0–100)', fmt: (r) => `<span class="px-2 py-0.5 rounded-full border font-bold ${safetyBadgeClass(r.safetyScore)}">${r.safetyScore}</span>` },
+          { label: 'Total Travel Time (min)', fmt: (r) => `<strong>${r.totalTime} min</strong>` },
+          { label: 'Route Distance (km)', fmt: (r) => `${r.totalDist} km` },
+          { label: 'High-Risk Segments (< 40)', fmt: (r) => `<span class="font-bold ${r.highRiskCount > 0 ? 'text-red-700' : 'text-emerald-700'}">${r.highRiskCount}</span>` },
+          { label: 'Weakest Segment Score', fmt: (r) => `${r.minSegSafety}/100` },
+          { label: 'Pareto Frontier Optimal?', fmt: (r) => r.isPareto ? '<span class="text-emerald-700 font-bold">Yes</span>' : '<span class="text-slate-400">Dominated</span>' },
+          { label: 'Street Lighting (0–10)', fmt: (r) => r.factorAvgs.lighting },
+          { label: 'Pedestrian / Crowd (0–10)', fmt: (r) => r.factorAvgs.crowd },
+          { label: 'CCTV Coverage (0–10)', fmt: (r) => r.factorAvgs.cctv },
+          { label: 'Police & Emergency (0–10)', fmt: (r) => r.factorAvgs.emergency },
+          { label: 'Low Isolation Score (0–10)', fmt: (r) => r.factorAvgs.isolationInv },
+          { label: 'Low Incident Risk (0–10)', fmt: (r) => r.factorAvgs.riskInv },
+        ];
+
+        tbody.innerHTML = rows
+          .map(
+            (row) => `
+            <tr class="hover:bg-slate-50/80">
+              <td class="py-2.5 px-4 font-semibold text-slate-700">${row.label}</td>
+              <td class="py-2.5 px-4">${row.fmt(s.shortest)}</td>
+              <td class="py-2.5 px-4">${row.fmt(s.safety)}</td>
+              <td class="py-2.5 px-4">${row.fmt(s.fixed)}</td>
+              <td class="py-2.5 px-4 bg-emerald-50/40 font-medium">${row.fmt(s.adaptive)}</td>
+            </tr>
+          `
+          )
+          .join('');
+      }
+
+      function renderSegmentList() {
+        const container = document.getElementById('segmentList');
+        const strat = state.lastEvaluation.strategies[state.inspectStrategy];
+        container.innerHTML = '';
+
+        strat.edges.forEach((edge, idx) => {
+          const item = document.createElement('div');
+          item.className = `p-3 rounded-xl border text-xs space-y-1.5 ${
+            edge.isHighRisk ? 'bg-red-50 border-red-200' : 'bg-white border-slate-200'
+          }`;
+          item.innerHTML = `
+            <div class="flex items-center justify-between gap-2">
+              <span class="font-bold text-slate-900">${idx + 1}. ${edge.road}</span>
+              <span class="px-2 py-0.5 rounded-full border font-bold text-[10px] ${safetyBadgeClass(edge.safetyScore)}">
+                ${edge.safetyScore}/100
+              </span>
+            </div>
+            <div class="text-[11px] text-slate-500">
+              ${getLocationName(edge.from).split(' ')[0]} ↔ ${getLocationName(edge.to).split(' ')[0]} · ${edge.dist} km · ${edge.time} min
+              ${edge.isDisrupted ? '<span class="ml-1 text-rose-700 font-bold">[DISRUPTED]</span>' : ''}
+            </div>
+            <div class="grid grid-cols-3 gap-1 text-[10px] text-slate-600 pt-0.5">
+              <span>Light: <strong>${edge.eff.lighting}</strong></span>
+              <span>Crowd: <strong>${edge.eff.crowd}</strong></span>
+              <span>CCTV: <strong>${edge.eff.cctv}</strong></span>
+              <span>Emerg: <strong>${edge.eff.emergency}</strong></span>
+              <span>Isol: <strong>${edge.eff.isolation}</strong></span>
+              <span>Risk: <strong>${edge.eff.incidentRisk}</strong></span>
+            </div>
+          `;
+          container.appendChild(item);
+        });
+      }
+
+      // =========================================================================
+      // 6. INTERACTIVE CANVAS MAP RENDERER
+      // =========================================================================
+      function drawCityMap() {
+        const canvas = document.getElementById('cityMapCanvas');
+        const ctx = canvas.getContext('2d');
+        const W = canvas.width;
+        const H = canvas.height;
+        const evalResult = state.lastEvaluation;
+
+        ctx.clearRect(0, 0, W, H);
+
+        // Dark slate GIS background for crisp green/yellow/red visibility
+        ctx.fillStyle = '#0b1324';
+        ctx.fillRect(0, 0, W, H);
+
+        // Subtle coordinate grid
+        ctx.strokeStyle = 'rgba(148, 163, 184, 0.08)';
+        ctx.lineWidth = 1;
+        for (let gx = 0; gx < W; gx += 60) {
+          ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, H); ctx.stroke();
+        }
+        for (let gy = 0; gy < H; gy += 60) {
+          ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(W, gy); ctx.stroke();
+        }
+
+        // Urban landmarks: Cubbon Park, Lalbagh, Ulsoor Lake
+        ctx.fillStyle = 'rgba(16, 185, 129, 0.12)';
+        ctx.beginPath(); ctx.ellipse(415, 210, 55, 32, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(355, 395, 50, 30, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = 'rgba(56, 189, 248, 0.16)';
+        ctx.beginPath(); ctx.ellipse(690, 145, 42, 22, -0.2, 0, Math.PI * 2); ctx.fill();
+
+        ctx.font = '600 10px sans-serif';
+        ctx.fillStyle = 'rgba(167, 243, 208, 0.45)';
+        ctx.fillText('Cubbon Park', 385, 248);
+        ctx.fillText('Lalbagh Garden', 318, 434);
+        ctx.fillStyle = 'rgba(125, 211, 252, 0.55)';
+        ctx.fillText('Ulsoor Lake', 662, 120);
+
+        const locById = Object.fromEntries(LOCATIONS.map((l) => [l.id, l]));
+
+        // Draw all base road segments dimly
+        evalResult.effEdges.forEach((edge) => {
+          const a = locById[edge.from];
+          const b = locById[edge.to];
+          ctx.save();
+          ctx.strokeStyle = edge.isDisrupted ? 'rgba(244, 63, 94, 0.45)' : 'rgba(148, 163, 184, 0.20)';
+          ctx.lineWidth = edge.isDisrupted ? 2.5 : 1.5;
+          ctx.beginPath();
+          ctx.moveTo(a.x, a.y);
+          ctx.lineTo(b.x, b.y);
+          ctx.stroke();
+          ctx.restore();
+        });
+
+        // Draw the 4 strategies with slight perpendicular offsets so overlapping edges remain distinct
+        const drawOrder = ['shortest', 'fixed', 'safety', 'adaptive'];
+        const offsets = { shortest: -6, fixed: -2, safety: 4, adaptive: 0 };
+        const dashes = { shortest: [7, 5], fixed: [10, 4, 2, 4], safety: [3, 4], adaptive: [] };
+
+        mapHoverState.hitSegments = [];
+
+        drawOrder.forEach((stratId) => {
+          if (state.mapFocus !== 'all' && state.mapFocus !== stratId) return;
+          const strat = evalResult.strategies[stratId];
+          const meta = STRATEGY_META[stratId];
+          const off = state.mapFocus === 'all' ? offsets[stratId] : 0;
+          const isFocused = state.mapFocus === stratId || (state.mapFocus === 'all' && stratId === 'adaptive');
+
+          strat.edges.forEach((edge, i) => {
+            const nodeA = locById[strat.nodes[i]];
+            const nodeB = locById[strat.nodes[i + 1]];
+            const dx = nodeB.x - nodeA.x;
+            const dy = nodeB.y - nodeA.y;
+            const len = Math.hypot(dx, dy) || 1;
+            const nx = (-dy / len) * off;
+            const ny = (dx / len) * off;
+
+            const x1 = nodeA.x + nx;
+            const y1 = nodeA.y + ny;
+            const x2 = nodeB.x + nx;
+            const y2 = nodeB.y + ny;
+
+            const strokeColor = state.colorMode === 'safety' ? safetyHexColor(edge.safetyScore) : meta.color;
+            const isHovered = mapHoverState.hoveredEdgeId === edge.id;
+
+            ctx.save();
+            if (isHovered || isFocused) {
+              ctx.shadowColor = strokeColor;
+              ctx.shadowBlur = isHovered ? 14 : 8;
+            }
+            ctx.strokeStyle = strokeColor;
+            ctx.lineWidth = isHovered ? 7 : isFocused ? 5.5 : 3;
+            ctx.setLineDash(state.mapFocus === 'all' ? dashes[stratId] : []);
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.stroke();
+            ctx.restore();
+
+            mapHoverState.hitSegments.push({ x1, y1, x2, y2, edge, stratId });
+
+            // Emergency POI badge on midpoint for high-emergency corridors
+            if (isFocused && (edge.police > 0 || edge.hosp > 0)) {
+              const mx = (x1 + x2) / 2;
+              const my = (y1 + y2) / 2;
+              ctx.fillStyle = '#7c3aed';
+              ctx.beginPath();
+              ctx.arc(mx, my, 5.5, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.strokeStyle = '#ffffff';
+              ctx.lineWidth = 1.2;
+              ctx.stroke();
+            }
+          });
+        });
+
+        // Draw location nodes
+        LOCATIONS.forEach((loc) => {
+          const isSource = loc.id === state.source;
+          const isDest = loc.id === state.dest;
+          const isHover = mapHoverState.hoveredNodeId === loc.id;
+
+          ctx.save();
+          if (isSource || isDest) {
+            ctx.fillStyle = isSource ? 'rgba(14, 165, 233, 0.28)' : 'rgba(16, 185, 129, 0.28)';
+            ctx.beginPath();
+            ctx.arc(loc.x, loc.y, 16, 0, Math.PI * 2);
+            ctx.fill();
+          }
+
+          ctx.fillStyle = isSource ? '#0284c7' : isDest ? '#059669' : '#e2e8f0';
+          ctx.beginPath();
+          ctx.arc(loc.x, loc.y, isSource || isDest || isHover ? 8.5 : 6, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = '#0f172a';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+
+          // Label
+          const shortName = loc.name.split('/')[0].split('(')[0].trim();
+          ctx.font = isSource || isDest ? '700 11px sans-serif' : '600 10px sans-serif';
+          const textW = ctx.measureText(shortName).width;
+          const lx = clamp(loc.x - textW / 2 - 5, 6, W - textW - 16);
+          const ly = loc.y < 35 ? loc.y + 16 : loc.y - 24;
+
+          ctx.fillStyle = isSource ? '#0369a1' : isDest ? '#047857' : 'rgba(15, 23, 42, 0.85)';
+          ctx.beginPath();
+          ctx.roundRect(lx, ly, textW + 10, 17, 5);
+          ctx.fill();
+
+          ctx.fillStyle = '#ffffff';
+          ctx.fillText(shortName, lx + 5, ly + 12);
+          ctx.restore();
+        });
+      }
+
+      function pointToSegDist(px, py, x1, y1, x2, y2) {
+        const l2 = (x2 - x1) ** 2 + (y2 - y1) ** 2;
+        if (l2 === 0) return Math.hypot(px - x1, py - y1);
+        const t = clamp(((px - x1) * (x2 - x1) + (py - y1) * (y2 - y1)) / l2, 0, 1);
+        return Math.hypot(px - (x1 + t * (x2 - x1)), py - (y1 + t * (y2 - y1)));
+      }
+
+      function setupMapInteractions() {
+        const canvas = document.getElementById('cityMapCanvas');
+        const tooltip = document.getElementById('mapTooltip');
+
+        canvas.addEventListener('mousemove', (e) => {
+          const rect = canvas.getBoundingClientRect();
+          const scaleX = canvas.width / rect.width;
+          const scaleY = canvas.height / rect.height;
+          const mx = (e.clientX - rect.left) * scaleX;
+          const my = (e.clientY - rect.top) * scaleY;
+
+          // Check node hover first
+          let foundNode = null;
+          for (const loc of LOCATIONS) {
+            if (Math.hypot(mx - loc.x, my - loc.y) < 14) {
+              foundNode = loc;
+              break;
+            }
+          }
+
+          if (foundNode) {
+            mapHoverState.hoveredNodeId = foundNode.id;
+            mapHoverState.hoveredEdgeId = null;
+            tooltip.innerHTML = `
+              <div class="font-bold text-slate-900">${foundNode.name}</div>
+              <div class="text-slate-500">${foundNode.area} Hub</div>
+              ${foundNode.id === state.source ? '<div class="text-sky-700 font-bold mt-1">Selected Source</div>' : ''}
+              ${foundNode.id === state.dest ? '<div class="text-emerald-700 font-bold mt-1">Selected Destination</div>' : ''}
+            `;
+            tooltip.style.left = `${Math.min(e.clientX - rect.left + 14, rect.width - 210)}px`;
+            tooltip.style.top = `${Math.max(e.clientY - rect.top - 10, 10)}px`;
+            tooltip.classList.remove('hidden');
+            drawCityMap();
+            return;
+          }
+
+          // Check segment hover
+          let closest = null;
+          let bestDist = 11;
+          for (const seg of mapHoverState.hitSegments) {
+            const d = pointToSegDist(mx, my, seg.x1, seg.y1, seg.x2, seg.y2);
+            if (d < bestDist) {
+              bestDist = d;
+              closest = seg;
+            }
+          }
+
+          if (closest) {
+            const edge = closest.edge;
+            mapHoverState.hoveredNodeId = null;
+            mapHoverState.hoveredEdgeId = edge.id;
+            tooltip.innerHTML = `
+              <div class="flex items-center justify-between gap-2 mb-1">
+                <span class="font-bold text-slate-900">${edge.road}</span>
+                <span class="px-1.5 py-0.5 rounded text-[10px] font-bold border ${safetyBadgeClass(edge.safetyScore)}">${edge.safetyScore}/100</span>
+              </div>
+              <div class="text-[11px] text-slate-500 mb-1">${edge.dist} km &middot; ${edge.time} min &middot; ${STRATEGY_META[closest.stratId].short}</div>
+              <div class="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10px] text-slate-700">
+                <span>Lighting: <strong>${edge.eff.lighting}/10</strong></span>
+                <span>Crowd: <strong>${edge.eff.crowd}/10</strong></span>
+                <span>CCTV: <strong>${edge.eff.cctv}/10</strong></span>
+                <span>Emergency: <strong>${edge.eff.emergency}/10</strong></span>
+                <span>Isolation: <strong>${edge.eff.isolation}/10</strong></span>
+                <span>Inc. Risk: <strong>${edge.eff.incidentRisk}/10</strong></span>
+              </div>
+            `;
+            tooltip.style.left = `${Math.min(e.clientX - rect.left + 14, rect.width - 230)}px`;
+            tooltip.style.top = `${Math.max(e.clientY - rect.top - 15, 10)}px`;
+            tooltip.classList.remove('hidden');
+            drawCityMap();
+          } else if (mapHoverState.hoveredEdgeId || mapHoverState.hoveredNodeId) {
+            mapHoverState.hoveredEdgeId = null;
+            mapHoverState.hoveredNodeId = null;
+            tooltip.classList.add('hidden');
+            drawCityMap();
+          }
+        });
+
+        canvas.addEventListener('mouseleave', () => {
+          mapHoverState.hoveredEdgeId = null;
+          mapHoverState.hoveredNodeId = null;
+          tooltip.classList.add('hidden');
+          drawCityMap();
+        });
+      }
+
+      // =========================================================================
+      // 7. CHART.JS VISUALIZATIONS (Safety vs Time, Radar, Sensitivity Tornado)
+      // =========================================================================
+      function renderCharts(evalResult, tornadoData) {
+        const s = evalResult.strategies;
+        const order = ['shortest', 'safety', 'fixed', 'adaptive'];
+
+        // 1. Safety vs Time Chart (Scatter Pareto or Bar)
+        const ctxST = document.getElementById('safetyTimeChart').getContext('2d');
+        if (charts.safetyTime) charts.safetyTime.destroy();
+
+        if (state.chartType === 'scatter') {
+          const paretoPts = evalResult.candidates
+            .filter((c) => c.isPareto)
+            .sort((a, b) => a.totalTime - b.totalTime)
+            .map((c) => ({ x: c.totalTime, y: c.safetyScore }));
+
+          charts.safetyTime = new Chart(ctxST, {
+            type: 'scatter',
+            data: {
+              datasets: [
+                {
+                  label: 'Pareto Frontier',
+                  data: paretoPts,
+                  showLine: true,
+                  borderColor: 'rgba(100, 116, 139, 0.45)',
+                  borderDash: [5, 5],
+                  borderWidth: 2,
+                  pointRadius: 3,
+                  pointBackgroundColor: 'rgba(100, 116, 139, 0.5)',
+                  fill: false,
+                },
+                ...order.map((id) => ({
+                  label: STRATEGY_META[id].short,
+                  data: [{ x: s[id].totalTime, y: s[id].safetyScore }],
+                  backgroundColor: STRATEGY_META[id].color,
+                  borderColor: '#ffffff',
+                  borderWidth: 2,
+                  pointRadius: id === 'adaptive' ? 11 : 8,
+                  pointHoverRadius: 12,
+                })),
+              ],
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              scales: {
+                x: { title: { display: true, text: 'Total Travel Time (minutes, lower is faster)' }, grid: { color: '#f1f5f9' } },
+                y: { min: 0, max: 100, title: { display: true, text: 'Overall Safety Score (0–100, higher is safer)' }, grid: { color: '#f1f5f9' } },
+              },
+              plugins: {
+                tooltip: {
+                  callbacks: {
+                    label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.x} min, Safety ${ctx.parsed.y}/100`,
+                  },
+                },
+              },
+            },
+          });
+        } else {
+          charts.safetyTime = new Chart(ctxST, {
+            type: 'bar',
+            data: {
+              labels: order.map((id) => STRATEGY_META[id].short),
+              datasets: [
+                {
+                  label: 'Safety Score (0–100)',
+                  data: order.map((id) => s[id].safetyScore),
+                  backgroundColor: '#10b981',
+                  borderRadius: 6,
+                },
+                {
+                  label: 'Travel Time (min)',
+                  data: order.map((id) => s[id].totalTime),
+                  backgroundColor: '#0284c7',
+                  borderRadius: 6,
+                },
+              ],
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              scales: { y: { beginAtZero: true, grid: { color: '#f1f5f9' } } },
+            },
+          });
+        }
+
+        // 2. Factor Radar Chart
+        const ctxRadar = document.getElementById('factorRadarChart').getContext('2d');
+        if (charts.radar) charts.radar.destroy();
+
+        charts.radar = new Chart(ctxRadar, {
+          type: 'radar',
+          data: {
+            labels: ['Lighting', 'Crowd Density', 'CCTV', 'Emergency Access', 'Low Isolation', 'Low Incident Risk'],
+            datasets: order.map((id) => ({
+              label: STRATEGY_META[id].short,
+              data: [
+                s[id].factorAvgs.lighting,
+                s[id].factorAvgs.crowd,
+                s[id].factorAvgs.cctv,
+                s[id].factorAvgs.emergency,
+                s[id].factorAvgs.isolationInv,
+                s[id].factorAvgs.riskInv,
+              ],
+              borderColor: STRATEGY_META[id].color,
+              backgroundColor: STRATEGY_META[id].color + '22',
+              borderWidth: id === 'adaptive' ? 3 : 2,
+              pointRadius: 3,
+            })),
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              r: { min: 0, max: 10, ticks: { stepSize: 2, backdropColor: 'transparent' } },
+            },
+          },
+        });
+
+        // 3. Sensitivity Tornado Chart
+        const ctxTornado = document.getElementById('tornadoChart').getContext('2d');
+        if (charts.tornado) charts.tornado.destroy();
+
+        charts.tornado = new Chart(ctxTornado, {
+          type: 'bar',
+          data: {
+            labels: tornadoData.map((d) => d.label),
+            datasets: [
+              {
+                label: 'Score Change at Low Weight (2%)',
+                data: tornadoData.map((d) => d.lowDelta),
+                backgroundColor: '#f43f5e',
+                borderRadius: 4,
+              },
+              {
+                label: 'Score Change at High Weight (65%)',
+                data: tornadoData.map((d) => d.highDelta),
+                backgroundColor: '#10b981',
+                borderRadius: 4,
+              },
+            ],
+          },
+          options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              x: {
+                title: { display: true, text: 'Safety Score Deviation from Current Baseline (points)' },
+                grid: { color: '#f1f5f9' },
+              },
+              y: { grid: { display: false } },
+            },
+          },
+        });
+
+        const topFactor = tornadoData[0];
+        document.getElementById('mostSensitiveBadge').textContent = `Most Sensitive: ${topFactor.label} (Δ ${topFactor.swing} pts)`;
+      }
+
+      // =========================================================================
+      // 8. ROBUSTNESS TEST SIMULATOR
+      // =========================================================================
+      function simulateDisruption() {
+        // Save clean baseline before disruption if not already saved
+        if (!state.baselineSnapshot) {
+          state.baselineSnapshot = evaluateAllStrategies({ ...state, disruptions: {} });
+        }
+
+        // Select 2–3 segments along Shortest and Fixed routes (excluding Safety-Only exclusive arterial segments so Adaptive always has a resilient bypass)
+        const baseStrategies = state.baselineSnapshot.strategies;
+        const safetyOnlySet = new Set(baseStrategies.safety.edges.map((e) => e.id));
+        const targetPool = new Map();
+        [...baseStrategies.shortest.edges, ...baseStrategies.fixed.edges].forEach((e) => {
+          targetPool.set(e.id, e);
+        });
+        const poolArr = Array.from(targetPool.values());
+        const bypassSafePool = poolArr.filter((e) => !safetyOnlySet.has(e.id));
+        const candidates = bypassSafePool.length >= 2 ? bypassSafePool : poolArr;
+
+        const chosen = [];
+        const count = Math.min(3, Math.max(1, candidates.length));
+        for (let i = 0; i < count; i++) {
+          const idx = (i + Math.floor(Math.random() * candidates.length)) % candidates.length;
+          if (!chosen.some((c) => c.id === candidates[idx].id)) chosen.push(candidates[idx]);
+        }
+        // Guarantee at least 2 segments if available
+        for (const c of candidates) {
+          if (chosen.length >= Math.min(2, candidates.length)) break;
+          if (!chosen.some((x) => x.id === c.id)) chosen.push(c);
+        }
+
+        state.disruptions = {};
+        const logItems = [];
+
+        chosen.forEach((edge, idx) => {
+          const lightingDelta = -(4.0 + (idx % 2) * 1.2);
+          const riskDelta = +(4.2 + (idx % 2) * 1.0);
+          const crowdDelta = -3.0;
+          state.disruptions[edge.id] = { lightingDelta, riskDelta, crowdDelta };
+          logItems.push(
+            `<li><strong>${edge.road}</strong> (${getLocationName(edge.from).split(' ')[0]} ↔ ${getLocationName(edge.to).split(' ')[0]}): Street lighting degraded (${lightingDelta.toFixed(1)}), incident risk spiked (+${riskDelta.toFixed(1)}), pedestrian crowd dropped (${crowdDelta.toFixed(1)}).</li>`
+          );
+        });
+
+        recomputeAndRender(false);
+        renderRobustnessComparison(logItems);
+      }
+
+      function renderRobustnessComparison(logItems) {
+        const before = state.baselineSnapshot.strategies;
+        const after = state.lastEvaluation.strategies;
+
+        document.getElementById('robustnessPlaceholder').classList.add('hidden');
+        document.getElementById('robustnessResults').classList.remove('hidden');
+        document.getElementById('resetDisruptionBtn').classList.remove('hidden');
+        document.getElementById('disruptionBadge').classList.remove('hidden');
+
+        document.getElementById('disruptionLog').innerHTML = `
+          <div class="font-bold uppercase tracking-wider text-[11px] mb-1">Simulated Safety Condition Degradation (1–3 Segments):</div>
+          <ul class="list-disc list-inside space-y-1">${logItems.join('')}</ul>
+        `;
+
+        const tbody = document.getElementById('robustnessTableBody');
+        tbody.innerHTML = ['shortest', 'safety', 'fixed', 'adaptive']
+          .map((id) => {
+            const b = before[id];
+            const a = after[id];
+            const delta = Number((a.safetyScore - b.safetyScore).toFixed(1));
+            const rerouted = a.key !== b.key;
+            const reactionText = rerouted
+              ? `<span class="text-emerald-700 font-bold">Re-routed to safer corridor (${a.totalTime} min)</span>`
+              : `<span class="text-slate-600">Stayed on same path</span>`;
+
+            return `
+              <tr class="${id === 'adaptive' ? 'bg-emerald-50/50 font-medium' : ''}">
+                <td class="py-2.5 px-3 font-bold text-slate-900">${STRATEGY_META[id].name}</td>
+                <td class="py-2.5 px-3">${b.safetyScore}/100</td>
+                <td class="py-2.5 px-3 font-bold ${a.safetyScore >= 70 ? 'text-emerald-700' : a.safetyScore >= 40 ? 'text-amber-700' : 'text-red-700'}">${a.safetyScore}/100</td>
+                <td class="py-2.5 px-3 font-bold ${delta >= 0 ? 'text-emerald-700' : 'text-red-700'}">${delta >= 0 ? '+' : ''}${delta}</td>
+                <td class="py-2.5 px-3 font-bold ${a.highRiskCount > 0 ? 'text-red-700' : 'text-emerald-700'}">${a.highRiskCount}</td>
+                <td class="py-2.5 px-3">${reactionText}</td>
+              </tr>
+            `;
+          })
+          .join('');
+
+        const adaptDrop = (after.adaptive.safetyScore - before.adaptive.safetyScore).toFixed(1);
+        const shortDrop = (after.shortest.safetyScore - before.shortest.safetyScore).toFixed(1);
+        document.getElementById('robustnessVerdict').innerHTML = `
+          Robustness Verdict: Under sudden segment degradation, the <strong>Adaptive Method</strong> maintained <strong>${after.adaptive.safetyScore}/100</strong> safety (${after.adaptive.highRiskCount} high-risk segments, &Delta; ${adaptDrop} pts) compared to Shortest/Fastest dropping to <strong>${after.shortest.safetyScore}/100</strong> (${after.shortest.highRiskCount} high-risk segments, &Delta; ${shortDrop} pts).
+        `;
+      }
+
+      function resetDisruptions() {
+        state.disruptions = {};
+        state.baselineSnapshot = null;
+        document.getElementById('robustnessPlaceholder').classList.remove('hidden');
+        document.getElementById('robustnessResults').classList.add('hidden');
+        document.getElementById('resetDisruptionBtn').classList.add('hidden');
+        document.getElementById('disruptionBadge').classList.add('hidden');
+        recomputeAndRender(false);
+      }
+
+      // =========================================================================
+      // 9. SAFETY REPORT & FILE HANDLING (localStorage + JSON)
+      // =========================================================================
+      function renderSafetyReport(evalResult) {
+        const { adaptive, shortest, safety, fixed } = evalResult.strategies;
+        const meta = evalResult.adaptiveMeta;
+        const el = document.getElementById('safetyReportContent');
+
+        el.innerHTML = `
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+            <div><span class="text-slate-500 block text-[10px] uppercase font-bold">Origin</span><strong class="text-slate-900">${getLocationName(state.source)}</strong></div>
+            <div><span class="text-slate-500 block text-[10px] uppercase font-bold">Destination</span><strong class="text-slate-900">${getLocationName(state.dest)}</strong></div>
+            <div><span class="text-slate-500 block text-[10px] uppercase font-bold">Time / Mode</span><strong class="text-slate-900 uppercase">${state.timeOfDay} (Pref ${state.riskPreference})</strong></div>
+            <div><span class="text-slate-500 block text-[10px] uppercase font-bold">Recommended Score</span><strong class="text-emerald-700 text-sm">${adaptive.safetyScore}/100 (${adaptive.totalTime} min)</strong></div>
+          </div>
+
+          <div class="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200">
+            <strong class="text-emerald-900 block mb-1">Recommendation Rationale:</strong>
+            <p class="text-emerald-950">${meta.explanation}</p>
+            <p class="text-[11px] text-emerald-800 mt-1">Adaptive Weights Applied: Safety = ${(meta.adaptiveSafetyW * 100).toFixed(0)}%, Time = ${(meta.adaptiveTimeW * 100).toFixed(0)}% | High-Risk Segments = ${adaptive.highRiskCount}</p>
+          </div>
+
+          <div>
+            <strong class="text-slate-900 block mb-1.5">Factor Scores (0–10 Scale) for Adaptive Route:</strong>
+            <div class="grid grid-cols-3 sm:grid-cols-6 gap-2">
+              <div class="p-2 rounded-lg bg-slate-50 border border-slate-200 text-center"><div class="text-[10px] text-slate-500">Lighting</div><strong class="text-sm">${adaptive.factorAvgs.lighting}</strong></div>
+              <div class="p-2 rounded-lg bg-slate-50 border border-slate-200 text-center"><div class="text-[10px] text-slate-500">Crowd</div><strong class="text-sm">${adaptive.factorAvgs.crowd}</strong></div>
+              <div class="p-2 rounded-lg bg-slate-50 border border-slate-200 text-center"><div class="text-[10px] text-slate-500">CCTV</div><strong class="text-sm">${adaptive.factorAvgs.cctv}</strong></div>
+              <div class="p-2 rounded-lg bg-slate-50 border border-slate-200 text-center"><div class="text-[10px] text-slate-500">Emergency</div><strong class="text-sm">${adaptive.factorAvgs.emergency}</strong></div>
+              <div class="p-2 rounded-lg bg-slate-50 border border-slate-200 text-center"><div class="text-[10px] text-slate-500">Low Isol.</div><strong class="text-sm">${adaptive.factorAvgs.isolationInv}</strong></div>
+              <div class="p-2 rounded-lg bg-slate-50 border border-slate-200 text-center"><div class="text-[10px] text-slate-500">Low Risk</div><strong class="text-sm">${adaptive.factorAvgs.riskInv}</strong></div>
+            </div>
+          </div>
+
+          <div>
+            <strong class="text-slate-900 block mb-1.5">Turn-by-Turn Adaptive Route Segments (${adaptive.totalDist} km):</strong>
+            <ol class="list-decimal list-inside space-y-1 text-slate-700">
+              ${adaptive.edges.map((e) => `<li><strong>${e.road}</strong> (${e.dist} km, ${e.time} min) — Safety: <strong>${e.safetyScore}/100</strong></li>`).join('')}
+            </ol>
+          </div>
+
+          <div class="text-[11px] text-slate-500 border-t border-slate-100 pt-2">
+            Benchmark Summary: Shortest (${shortest.safetyScore}/100, ${shortest.totalTime}m) | Fixed (${fixed.safetyScore}/100, ${fixed.totalTime}m) | Safety-Only (${safety.safetyScore}/100, ${safety.totalTime}m).
+          </div>
+        `;
+      }
+
+      const STORAGE_KEY = 'safepath_saved_analyses_v1';
+
+      function getSavedAnalyses() {
+        try {
+          return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+        } catch {
+          return [];
+        }
+      }
+
+      function renderSavedAnalyses() {
+        const listEl = document.getElementById('savedAnalysesList');
+        const items = getSavedAnalyses();
+        if (items.length === 0) {
+          listEl.innerHTML = '<p class="text-xs text-slate-400 italic">No saved analyses yet. Click "Save to Browser Storage" above.</p>';
+          return;
+        }
+        listEl.innerHTML = '';
+        items.forEach((item, idx) => {
+          const row = document.createElement('div');
+          row.className = 'p-2.5 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-between gap-2 text-xs';
+          row.innerHTML = `
+            <div class="min-w-0">
+              <div class="font-bold text-slate-900 truncate">${item.title}</div>
+              <div class="text-[10px] text-slate-500">${item.savedAt} &middot; Adaptive: ${item.adaptiveScore}/100</div>
+            </div>
+            <div class="flex items-center gap-1 shrink-0">
+              <button type="button" class="load-btn px-2 py-1 rounded bg-blue-900 text-white text-[10px] font-bold cursor-pointer focus-ring">Load</button>
+              <button type="button" class="del-btn px-2 py-1 rounded bg-red-100 text-red-700 text-[10px] font-bold cursor-pointer focus-ring">Del</button>
+            </div>
+          `;
+          row.querySelector('.load-btn').addEventListener('click', () => loadSnapshot(item.snapshot));
+          row.querySelector('.del-btn').addEventListener('click', () => {
+            const next = getSavedAnalyses();
+            next.splice(idx, 1);
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+            renderSavedAnalyses();
+          });
+          listEl.appendChild(row);
+        });
+      }
+
+      function buildCurrentSnapshot() {
+        return {
+          version: '1.0',
+          savedAt: new Date().toLocaleString(),
+          params: {
+            source: state.source,
+            dest: state.dest,
+            timeOfDay: state.timeOfDay,
+            riskPreference: state.riskPreference,
+            fixedSafetyWeight: state.fixedSafetyWeight,
+            factorWeights: { ...state.factorWeights },
+            overallSensBalance: state.overallSensBalance,
+            disruptions: { ...state.disruptions },
+          },
+          results: state.lastEvaluation.strategies,
+        };
+      }
+
+      function loadSnapshot(snap) {
+        if (!snap || !snap.params) return;
+        Object.assign(state, snap.params);
+        document.getElementById('sourceSelect').value = state.source;
+        document.getElementById('destSelect').value = state.dest;
+        updateTimeButtonsUI();
+        state.baselineSnapshot = null;
+        if (Object.keys(state.disruptions).length > 0) {
+          document.getElementById('resetDisruptionBtn').classList.remove('hidden');
+          document.getElementById('disruptionBadge').classList.remove('hidden');
+        } else {
+          document.getElementById('resetDisruptionBtn').classList.add('hidden');
+          document.getElementById('disruptionBadge').classList.add('hidden');
+        }
+        recomputeAndRender(true);
+        showFileStatus('Loaded saved route analysis successfully.', 'emerald');
+      }
+
+      function showFileStatus(msg, color) {
+        const el = document.getElementById('fileStatusMsg');
+        el.className = `p-2.5 rounded-lg text-xs font-semibold ${
+          color === 'emerald' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-red-50 text-red-800 border border-red-200'
+        }`;
+        el.textContent = msg;
+        el.classList.remove('hidden');
+        setTimeout(() => el.classList.add('hidden'), 4000);
+      }
+
+      // =========================================================================
+      // 10. ORCHESTRATION & EVENT BINDINGS
+      // =========================================================================
+      function recomputeAndRender(resetBaselineKey = true) {
+        const evalResult = evaluateAllStrategies(state);
+        state.lastEvaluation = evalResult;
+        if (resetBaselineKey || !state.baselineRecommendationId) {
+          state.baselineRecommendationId = evalResult.strategies.adaptive.key;
+        }
+
+        const { adaptive } = evalResult.strategies;
+        const meta = evalResult.adaptiveMeta;
+
+        document.getElementById('activeRouteSubtitle').textContent =
+          `${getLocationName(state.source)} → ${getLocationName(state.dest)} · ${state.timeOfDay.toUpperCase()} Conditions`;
+
+        document.getElementById('paretoHeroScore').textContent = `${adaptive.safetyScore}/100`;
+        document.getElementById('paretoStatusTag').textContent = adaptive.isPareto ? 'Pareto-Optimal Solution' : 'Constrained Feasible Solution';
+        document.getElementById('paretoExplanation').textContent = meta.explanation;
+        document.getElementById('adaptiveWeightsSummary').textContent =
+          `Adaptive Weights → Safety: ${(meta.adaptiveSafetyW * 100).toFixed(0)}%, Time: ${(meta.adaptiveTimeW * 100).toFixed(0)}% | Soft Constraint (High-Risk < 40 avoided): ${meta.softConstraintApplied ? 'Active & Enforced' : 'Satisfied'}`;
+
+        // Sensitivity recommendation shift notice
+        const shifted = adaptive.key !== state.baselineRecommendationId;
+        const shiftEl = document.getElementById('sensitivityShiftAlert');
+        if (shifted) {
+          shiftEl.className = 'p-3 rounded-xl bg-amber-50 border border-amber-300 text-xs text-amber-900 font-semibold';
+          shiftEl.textContent = `Recommendation Changed! Based on current weights, Adaptive switched to: ${adaptive.edges.map((e) => e.road).join(' → ')} (Safety ${adaptive.safetyScore}/100, ${adaptive.totalTime} min).`;
+        } else {
+          shiftEl.className = 'p-3 rounded-xl bg-blue-50 border border-blue-200 text-xs text-blue-900 font-medium';
+          shiftEl.textContent = `Recommended route remains stable (${adaptive.safetyScore}/100, ${adaptive.totalTime} min). Adjust sliders further to test sensitivity thresholds.`;
+        }
+
+        updateSliderDisplays(evalResult.normWeights);
+        renderStrategyCards(evalResult);
+        renderComparisonTable(evalResult);
+        renderSegmentList();
+        drawCityMap();
+        const tornadoData = computeSensitivityTornado();
+        renderCharts(evalResult, tornadoData);
+        renderSafetyReport(evalResult);
+      }
+
+      function triggerFindRoutes(scrollToDashboard) {
+        const src = document.getElementById('sourceSelect').value;
+        const dst = document.getElementById('destSelect').value;
+        const errEl = document.getElementById('formError');
+
+        if (src === dst) {
+          errEl.textContent = 'Please select two different locations for Source and Destination.';
+          errEl.classList.remove('hidden');
+          return;
+        }
+        errEl.classList.add('hidden');
+        state.source = src;
+        state.dest = dst;
+        state.baselineSnapshot = null;
+
+        const btn = document.getElementById('findRoutesBtn');
+        const spinner = document.getElementById('findBtnSpinner');
+        const btnText = document.getElementById('findBtnText');
+        btn.disabled = true;
+        spinner.classList.remove('hidden');
+        btnText.textContent = 'Optimizing 4 Strategies...';
+
+        setTimeout(() => {
+          recomputeAndRender(true);
+          btn.disabled = false;
+          spinner.classList.add('hidden');
+          btnText.textContent = 'Find & Compare Routes';
+          if (scrollToDashboard) {
+            document.getElementById('compare-section').scrollIntoView({ behavior: 'smooth' });
+          }
+        }, 250);
+      }
+
+      function bindEvents() {
+        // Mobile menu
+        const menuBtn = document.getElementById('mobileMenuBtn');
+        const mobileMenu = document.getElementById('mobileMenu');
+        menuBtn.addEventListener('click', () => {
+          const isOpen = !mobileMenu.classList.contains('hidden');
+          mobileMenu.classList.toggle('hidden');
+          menuBtn.setAttribute('aria-expanded', String(!isOpen));
+        });
+        mobileMenu.querySelectorAll('a').forEach((a) => {
+          a.addEventListener('click', () => mobileMenu.classList.add('hidden'));
+        });
+
+        // Form submit
+        document.getElementById('routeForm').addEventListener('submit', (e) => {
+          e.preventDefault();
+          triggerFindRoutes(true);
+        });
+
+        // Time-of-day buttons
+        document.querySelectorAll('.time-btn').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            state.timeOfDay = btn.dataset.time;
+            updateTimeButtonsUI();
+            state.baselineSnapshot = null;
+            recomputeAndRender(true);
+          });
+        });
+
+        // Sliders
+        document.getElementById('riskPrefSlider').addEventListener('input', (e) => {
+          state.riskPreference = parseInt(e.target.value, 10);
+          recomputeAndRender(false);
+        });
+
+        document.getElementById('fixedWeightSlider').addEventListener('input', (e) => {
+          state.fixedSafetyWeight = parseFloat(e.target.value);
+          recomputeAndRender(false);
+        });
+
+        document.getElementById('sensSafetyVsTimeSlider').addEventListener('input', (e) => {
+          state.overallSensBalance = parseInt(e.target.value, 10);
+          recomputeAndRender(false);
+        });
+
+        document.getElementById('resetWeightsBtn').addEventListener('click', () => {
+          FACTOR_META.forEach((f) => { state.factorWeights[f.key] = f.defaultWeight; });
+          state.overallSensBalance = 50;
+          state.fixedSafetyWeight = 0.70;
+          recomputeAndRender(false);
+        });
+
+        // Map controls
+        document.getElementById('colorModeSafety').addEventListener('click', () => {
+          state.colorMode = 'safety';
+          document.getElementById('colorModeSafety').className = 'px-3 py-1.5 rounded-lg bg-blue-900 text-white transition focus-ring';
+          document.getElementById('colorModeStrategy').className = 'px-3 py-1.5 rounded-lg text-slate-700 hover:text-slate-900 transition focus-ring';
+          drawCityMap();
+        });
+        document.getElementById('colorModeStrategy').addEventListener('click', () => {
+          state.colorMode = 'strategy';
+          document.getElementById('colorModeStrategy').className = 'px-3 py-1.5 rounded-lg bg-blue-900 text-white transition focus-ring';
+          document.getElementById('colorModeSafety').className = 'px-3 py-1.5 rounded-lg text-slate-700 hover:text-slate-900 transition focus-ring';
+          drawCityMap();
+        });
+        document.getElementById('mapFocusSelect').addEventListener('change', (e) => {
+          state.mapFocus = e.target.value;
+          if (e.target.value !== 'all') {
+            state.inspectStrategy = e.target.value;
+            document.getElementById('segmentInspectStrategy').value = e.target.value;
+            renderSegmentList();
+          }
+          drawCityMap();
+        });
+        document.getElementById('segmentInspectStrategy').addEventListener('change', (e) => {
+          state.inspectStrategy = e.target.value;
+          renderSegmentList();
+        });
+
+        // Chart toggle
+        document.getElementById('chartTypeScatter').addEventListener('click', () => {
+          state.chartType = 'scatter';
+          document.getElementById('chartTypeScatter').className = 'px-2.5 py-1 rounded-md bg-blue-900 text-white focus-ring';
+          document.getElementById('chartTypeBar').className = 'px-2.5 py-1 rounded-md text-slate-700 focus-ring';
+          renderCharts(state.lastEvaluation, computeSensitivityTornado());
+        });
+        document.getElementById('chartTypeBar').addEventListener('click', () => {
+          state.chartType = 'bar';
+          document.getElementById('chartTypeBar').className = 'px-2.5 py-1 rounded-md bg-blue-900 text-white focus-ring';
+          document.getElementById('chartTypeScatter').className = 'px-2.5 py-1 rounded-md text-slate-700 focus-ring';
+          renderCharts(state.lastEvaluation, computeSensitivityTornado());
+        });
+
+        // Robustness buttons
+        document.getElementById('simulateDisruptionBtn').addEventListener('click', simulateDisruption);
+        document.getElementById('resetDisruptionBtn').addEventListener('click', resetDisruptions);
+
+        // Reports & File Handling
+        document.getElementById('printReportBtn').addEventListener('click', () => window.print());
+        document.getElementById('downloadReportTxtBtn').addEventListener('click', () => {
+          const s = state.lastEvaluation.strategies;
+          const m = state.lastEvaluation.adaptiveMeta;
+          const txt = [
+            '============================================================',
+            'SAFEPATH - PERSONAL SAFETY ROUTE PLANNER REPORT',
+            '============================================================',
+            `Generated: ${new Date().toLocaleString()}`,
+            `Journey: ${getLocationName(state.source)} -> ${getLocationName(state.dest)}`,
+            `Time of Day: ${state.timeOfDay.toUpperCase()} | Risk Preference: ${state.riskPreference}/100`,
+            '',
+            '--- RECOMMENDED ADAPTIVE ROUTE ---',
+            `Safety Score: ${s.adaptive.safetyScore}/100 | Time: ${s.adaptive.totalTime} min | Distance: ${s.adaptive.totalDist} km`,
+            `High-Risk Segments (<40): ${s.adaptive.highRiskCount}`,
+            `Adaptive Weights: Safety ${(m.adaptiveSafetyW * 100).toFixed(0)}% / Time ${(m.adaptiveTimeW * 100).toFixed(0)}%`,
+            `Reason: ${m.explanation}`,
+            '',
+            'Factor Scores (0-10):',
+            `  Lighting: ${s.adaptive.factorAvgs.lighting} | Crowd: ${s.adaptive.factorAvgs.crowd} | CCTV: ${s.adaptive.factorAvgs.cctv}`,
+            `  Emergency: ${s.adaptive.factorAvgs.emergency} | Low Isolation: ${s.adaptive.factorAvgs.isolationInv} | Low Risk: ${s.adaptive.factorAvgs.riskInv}`,
+            '',
+            'Segments:',
+            ...s.adaptive.edges.map((e, i) => `  ${i + 1}. ${e.road} (${e.dist} km, ${e.time} min) - Safety: ${e.safetyScore}/100`),
+            '',
+            '--- ALL 4 STRATEGIES COMPARED ---',
+            `1. Shortest/Fastest: Safety ${s.shortest.safetyScore}/100 | Time ${s.shortest.totalTime} min | Dist ${s.shortest.totalDist} km | High-Risk ${s.shortest.highRiskCount}`,
+            `2. Safety-Only:      Safety ${s.safety.safetyScore}/100 | Time ${s.safety.totalTime} min | Dist ${s.safety.totalDist} km | High-Risk ${s.safety.highRiskCount}`,
+            `3. Fixed Weighted:   Safety ${s.fixed.safetyScore}/100 | Time ${s.fixed.totalTime} min | Dist ${s.fixed.totalDist} km | High-Risk ${s.fixed.highRiskCount}`,
+            `4. Adaptive (Ours):  Safety ${s.adaptive.safetyScore}/100 | Time ${s.adaptive.totalTime} min | Dist ${s.adaptive.totalDist} km | High-Risk ${s.adaptive.highRiskCount}`,
+          ].join('\n');
+
+          const blob = new Blob([txt], { type: 'text/plain;charset=utf-8' });
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = `safepath_report_${state.source}_to_${state.dest}.txt`;
+          a.click();
+        });
+
+        document.getElementById('saveLocalBtn').addEventListener('click', () => {
+          const items = getSavedAnalyses();
+          const snap = buildCurrentSnapshot();
+          items.unshift({
+            title: `${getLocationName(state.source).split(' ')[0]} → ${getLocationName(state.dest).split(' ')[0]} (${state.timeOfDay})`,
+            savedAt: snap.savedAt,
+            adaptiveScore: snap.results.adaptive.safetyScore,
+            snapshot: snap,
+          });
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(items.slice(0, 12)));
+          renderSavedAnalyses();
+          showFileStatus('Saved route analysis to localStorage!', 'emerald');
+        });
+
+        document.getElementById('exportJsonBtn').addEventListener('click', () => {
+          const snap = buildCurrentSnapshot();
+          const blob = new Blob([JSON.stringify(snap, null, 2)], { type: 'application/json' });
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = `safepath_analysis_${state.source}_${state.dest}.json`;
+          a.click();
+          showFileStatus('Downloaded JSON snapshot.', 'emerald');
+        });
+
+        document.getElementById('importJsonInput').addEventListener('change', (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+            try {
+              const parsed = JSON.parse(ev.target.result);
+              if (!parsed.params || !parsed.params.source) throw new Error('Invalid SafePath JSON structure.');
+              loadSnapshot(parsed);
+            } catch (err) {
+              showFileStatus(`Failed to import JSON: ${err.message}`, 'red');
+            }
+          };
+          reader.readAsText(file);
+        });
+      }
+
+      // Initialize App
+      document.addEventListener('DOMContentLoaded', () => {
+        initSelectors();
+        setupMapInteractions();
+        bindEvents();
+        recomputeAndRender(true);
+        renderSavedAnalyses();
+      });
+    })();
+  </script>
+</body>
+</html>

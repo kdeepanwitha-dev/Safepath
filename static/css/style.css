@@ -1,0 +1,237 @@
+/* SafePath Custom Styles */
+
+html {
+  scroll-behavior: smooth;
+}
+
+.leaflet-container {
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background-color: #e2e8f0;
+}
+
+.leaflet-container.is-picking-gps {
+  cursor: crosshair !important;
+}
+
+.strategy-card {
+  transition: transform 150ms ease, box-shadow 150ms ease, border-color 150ms ease;
+}
+
+.strategy-card:hover {
+  transform: translateY(-2px);
+}
+
+.strategy-card.is-selected {
+  box-shadow: 0 10px 25px -5px rgba(11, 31, 58, 0.16), 0 0 0 2px #0b1f3a;
+}
+
+.poi-marker-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 9999px;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 800;
+  border: 2px solid #ffffff;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.35);
+}
+
+.poi-police {
+  background-color: #1d4ed8;
+}
+
+.poi-hospital {
+  background-color: #be123c;
+}
+
+.node-pin-label {
+  background: rgba(11, 31, 58, 0.92);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 6px;
+  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+}
+
+/* GPS Vehicle Navigation Marker */
+.gps-vehicle-wrap {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.gps-vehicle-halo {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  border-radius: 9999px;
+  background: rgba(14, 165, 233, 0.25);
+  border: 1.5px solid rgba(14, 165, 233, 0.55);
+  animation: gpsPulse 2s ease-out infinite;
+}
+
+.gps-vehicle-core {
+  position: relative;
+  width: 30px;
+  height: 30px;
+  border-radius: 9999px;
+  background: #0b1f3a;
+  border: 2.5px solid #ffffff;
+  box-shadow: 0 4px 12px rgba(7, 20, 38, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 140ms linear;
+}
+
+.gps-heading-collar {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  transition: transform 140ms linear;
+}
+
+.gps-heading-arrow {
+  position: absolute;
+  top: -3px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 10px solid #10b981;
+  filter: drop-shadow(0 1px 2px rgba(7, 20, 38, 0.75));
+}
+
+@keyframes gpsPulse {
+  0% {
+    transform: scale(0.78);
+    opacity: 0.9;
+  }
+  70% {
+    transform: scale(1.35);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.35);
+    opacity: 0;
+  }
+}
+
+/* Floating Clickable Route Number Callouts (R1, R2, R3, R4) */
+.route-callout-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 9999px;
+  font-size: 10px;
+  font-weight: 800;
+  white-space: nowrap;
+  border: 1.5px solid #ffffff;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.32);
+  cursor: pointer;
+}
+
+/* Emergency SOS Floating Circular Button & Police Target Beacon */
+.sos-fab-wrap {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  z-index: 1400;
+}
+
+.sos-fab-pulse {
+  position: absolute;
+  inset: -6px;
+  border-radius: 9999px;
+  background: rgba(220, 38, 38, 0.35);
+  animation: sosPulse 1.8s ease-out infinite;
+  pointer-events: none;
+}
+
+.sos-police-beacon {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sos-police-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: rgba(234, 88, 12, 0.32);
+  border: 2px solid #dc2626;
+  animation: sosPulse 1.4s ease-out infinite;
+}
+
+.sos-police-core {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  border-radius: 9999px;
+  background: #dc2626;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 900;
+  border: 2px solid #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 3px 10px rgba(220, 38, 38, 0.55);
+}
+
+@keyframes sosPulse {
+  0% {
+    transform: scale(0.92);
+    opacity: 0.9;
+  }
+  70% {
+    transform: scale(1.42);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.42);
+    opacity: 0;
+  }
+}
+
+/* Rapido/Ola/Uber Place Search Autocomplete Dropdown */
+.place-autocomplete-list {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+.place-autocomplete-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.place-autocomplete-list::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 9999px;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #ffffff !important;
+  }
+  #safepath-map {
+    height: 360px !important;
+  }
+}

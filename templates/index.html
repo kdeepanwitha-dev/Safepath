@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SafePath – Personal Safety Route Planner</title>
+  <meta name="description" content="Multi-objective personal safety route planner comparing Shortest, Safety-Only, Fixed Weighted, and Adaptive routing strategies across Bengaluru & India with live GPS compass navigation and Police SOS dispatch." />
+
+  <!-- Tailwind CSS (CDN) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            navy: {
+              950: '#071426',
+              900: '#0b1f3a',
+              800: '#102d52',
+              700: '#173f70',
+            },
+            safe: {
+              600: '#059669',
+              500: '#10b981',
+              400: '#34d399',
+              50: '#ecfdf5',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Leaflet CSS & JS (CDN) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body class="bg-slate-50 text-slate-900 antialiased min-h-screen flex flex-col">
+
+  <!-- Toast Banner (replaces window.alert, placed bottom-left away from floating SOS) -->
+  <div id="toast-banner" role="status" aria-live="polite" class="hidden fixed bottom-6 left-5 z-[2100] max-w-md rounded-xl border border-emerald-500/40 bg-navy-900 text-white px-4 py-3 shadow-2xl flex items-center gap-3 text-sm">
+    <span id="toast-dot" class="h-2.5 w-2.5 rounded-full bg-safe-400 shrink-0"></span>
+    <span id="toast-text" class="leading-snug"></span>
+  </div>
+
+  <!-- Header & Branding -->
+  <header class="bg-gradient-to-r from-navy-950 via-navy-900 to-navy-800 text-white border-b border-white/10 shadow-lg sticky top-0 z-[1000] no-print">
+    <div class="max-w-[1600px] mx-auto px-4 sm:px-6 py-3">
+      <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+
+        <!-- Custom SVG Shield + Path Logo & Brand -->
+        <div class="flex items-center gap-3.5">
+          <div class="shrink-0 bg-white/5 border border-white/15 rounded-xl p-1.5 shadow-inner" aria-hidden="true">
+            <svg width="42" height="42" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="shieldGrad" x1="8" y1="4" x2="40" y2="44" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stop-color="#173f70" />
+                  <stop offset="100%" stop-color="#071426" />
+                </linearGradient>
+                <linearGradient id="pathGrad" x1="15" y1="34" x2="34" y2="14" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stop-color="#34d399" />
+                  <stop offset="100%" stop-color="#10b981" />
+                </linearGradient>
+              </defs>
+              <path d="M24 3L6 10.5V22.8C6 33.9 13.7 43.8 24 46.5C34.3 43.8 42 33.9 42 22.8V10.5L24 3Z" fill="url(#shieldGrad)" stroke="#34d399" stroke-width="2.2" stroke-linejoin="round" />
+              <path d="M15 33.5C15 27.5 22 28 24 22.5C26 17 31 19 32.5 14" stroke="url(#pathGrad)" stroke-width="3.2" stroke-linecap="round" />
+              <circle cx="15" cy="33.5" r="2.7" fill="#ffffff" />
+              <circle cx="32.5" cy="14" r="3.2" fill="#34d399" stroke="#ffffff" stroke-width="1.3" />
+            </svg>
+          </div>
+          <div>
+            <div class="flex items-center gap-2.5 flex-wrap">
+              <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-white">SafePath</h1>
+              <span class="text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-safe-500/20 text-safe-400 border border-safe-400/30">Bengaluru &amp; Pan-India Engine</span>
+            </div>
+            <p class="text-xs sm:text-sm text-emerald-200/90 font-medium">Travel Confident. Choose Safety Over Shortcuts.</p>
+          </div>
+        </div>
+
+        <!-- 3 Rotating Safety Quotes -->
+        <div class="lg:max-w-md bg-white/5 border border-white/10 rounded-lg px-3.5 py-2 flex items-center justify-between gap-3">
+          <div class="min-w-0">
+            <div class="text-[10px] uppercase tracking-widest text-safe-400 font-semibold">Safety Principle</div>
+            <p id="rotating-quote" class="text-xs text-slate-100 italic leading-snug transition-opacity duration-300">
+              “The shortest road in minutes is rarely the wisest road after dark.”
+            </p>
+          </div>
+          <div class="flex items-center gap-1 shrink-0" aria-label="Quote indicator">
+            <span class="quote-dot h-1.5 w-3 rounded-full bg-safe-400 transition-all"></span>
+            <span class="quote-dot h-1.5 w-1.5 rounded-full bg-white/30 transition-all"></span>
+            <span class="quote-dot h-1.5 w-1.5 rounded-full bg-white/30 transition-all"></span>
+          </div>
+        </div>
+
+        <!-- Top Navigation -->
+        <nav aria-label="Primary navigation" class="hidden xl:flex items-center gap-1 text-xs font-medium">
+          <a href="#planner-section" class="px-2.5 py-1.5 rounded-md hover:bg-white/10 text-slate-200 hover:text-white transition">Plan Route</a>
+          <a href="#map-section" class="px-2.5 py-1.5 rounded-md hover:bg-white/10 text-slate-200 hover:text-white transition">Live Map</a>
+          <a href="#compare-section" class="px-2.5 py-1.5 rounded-md hover:bg-white/10 text-slate-200 hover:text-white transition">Compare Strategies</a>
+        </nav>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="flex-1 max-w-[1600px] w-full mx-auto px-4 sm:px-6 py-5 space-y-6">
+
+    <!-- Persistent Emergency Mode Banner (visible whenever SOS is active) -->
+    <div id="emergency-mode-banner" role="alert" class="hidden rounded-2xl bg-gradient-to-r from-red-700 via-red-600 to-orange-600 text-white px-5 py-3.5 shadow-xl border-2 border-red-300 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-3 min-w-0">
+        <span class="h-3.5 w-3.5 rounded-full bg-white animate-ping shrink-0"></span>
+        <div class="min-w-0">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-sm font-extrabold uppercase tracking-wide">Emergency Mode Active</span>
+          </div>
+          <p id="emergency-banner-summary" class="text-xs text-red-50 truncate">Routing at maximum safety priority (98% Safety / 2% Time) to nearest police station.</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2 shrink-0 no-print">
+        <button id="reopen-sos-modal-btn" type="button" class="px-3 py-1.5 rounded-lg bg-white/15 hover:bg-white/25 text-white border border-white/30 text-xs font-bold transition">
+          View Emergency Details
+        </button>
+        <button id="banner-cancel-sos-btn" type="button" class="px-3.5 py-1.5 rounded-lg bg-white text-red-700 hover:bg-red-50 text-xs font-extrabold shadow-sm transition">
+          Cancel Emergency
+        </button>
+      </div>
+    </div>
+
+    <!-- Top Row: Left Control Panel + Right Interactive Map (flush height, zero empty space) -->
+    <section id="planner-section" class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+
+      <!-- Left Control Panel (4 cols on lg) -->
+      <aside class="lg:col-span-4 flex flex-col gap-3.5 no-print">
+
+        <!-- Route Query & Universal Place Search Card -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
+            <div>
+              <h2 class="text-base font-bold text-navy-900">Route &amp; Place Finder</h2>
+              <p class="text-xs text-slate-500">Bengaluru &amp; India · Places, Shops, Food &amp; GPS</p>
+            </div>
+            <span id="adaptive-weight-pill" class="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-safe-50 text-safe-600 border border-emerald-200">
+              Adaptive: 70% Safe
+            </span>
+          </div>
+
+          <!-- Category Filter Chips -->
+          <div id="category-filter-bar" class="flex flex-wrap gap-1.5">
+            <button type="button" data-cat="" class="cat-chip px-2.5 py-1 rounded-lg border text-[11px] font-semibold bg-navy-900 text-white border-navy-900 transition">All Places</button>
+            <button type="button" data-cat="shop" class="cat-chip px-2.5 py-1 rounded-lg border text-[11px] font-semibold bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 transition">Shops &amp; Malls</button>
+            <button type="button" data-cat="food" class="cat-chip px-2.5 py-1 rounded-lg border text-[11px] font-semibold bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 transition">Food &amp; Cafes</button>
+            <button type="button" data-cat="landmark" class="cat-chip px-2.5 py-1 rounded-lg border text-[11px] font-semibold bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 transition">Landmarks</button>
+            <button type="button" data-cat="transit" class="cat-chip px-2.5 py-1 rounded-lg border text-[11px] font-semibold bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 transition">Transit &amp; Metro</button>
+          </div>
+
+          <!-- Rapido/Ola/Uber Style Pickup & Destination Autocomplete -->
+          <div class="space-y-2.5 relative">
+            <!-- Pickup / Source -->
+            <div class="relative">
+              <div class="flex items-center justify-between mb-1">
+                <label for="source-search-input" class="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                  <span class="h-2.5 w-2.5 rounded-full bg-sky-600 inline-block"></span>
+                  <span>Pickup / Start Location</span>
+                </label>
+                <button id="source-my-loc-btn" type="button" class="text-[11px] font-bold text-sky-700 hover:text-sky-900 flex items-center gap-1">
+                  <span class="h-1.5 w-1.5 rounded-full bg-sky-500 animate-pulse"></span>
+                  <span>My Current Location</span>
+                </button>
+              </div>
+              <div class="relative flex items-center">
+                <input id="source-search-input" type="text" autocomplete="off" placeholder="Search pickup, shop, cafe, city or Current Location..." class="w-full rounded-xl border border-slate-300 bg-white pl-3 pr-16 py-2 text-xs sm:text-sm font-medium text-slate-800 focus:border-navy-700 focus:ring-2 focus:ring-navy-700/20 outline-none" />
+                <button id="source-clear-btn" type="button" aria-label="Clear or browse pickup locations" class="absolute right-2 px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-[10px] font-bold text-slate-600">Search</button>
+              </div>
+              <div id="source-dropdown" class="hidden place-autocomplete-list absolute left-0 right-0 top-full mt-1 z-[1300] bg-white border border-slate-200 rounded-xl shadow-2xl max-h-64 overflow-y-auto divide-y divide-slate-100"></div>
+            </div>
+
+            <!-- Swap Row -->
+            <div class="flex items-center justify-end -my-1">
+              <button id="swap-places-btn" type="button" class="px-2.5 py-1 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-[11px] font-semibold text-slate-700 transition">
+                ⇅ Swap Pickup &amp; Drop
+              </button>
+            </div>
+
+            <!-- Destination -->
+            <div class="relative">
+              <label for="dest-search-input" class="text-xs font-semibold text-slate-700 flex items-center gap-1.5 mb-1">
+                <span class="h-2.5 w-2.5 rounded-full bg-emerald-600 inline-block"></span>
+                <span>Destination (Any Place, Shop, Food, or City in India)</span>
+              </label>
+              <div class="relative flex items-center">
+                <input id="dest-search-input" type="text" autocomplete="off" placeholder="Search Rameshwaram Cafe, Commercial St, India Gate, Mumbai..." class="w-full rounded-xl border border-slate-300 bg-white pl-3 pr-16 py-2 text-xs sm:text-sm font-medium text-slate-800 focus:border-navy-700 focus:ring-2 focus:ring-navy-700/20 outline-none" />
+                <button id="dest-clear-btn" type="button" aria-label="Clear or browse destination locations" class="absolute right-2 px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-[10px] font-bold text-slate-600">Search</button>
+              </div>
+              <div id="dest-dropdown" class="hidden place-autocomplete-list absolute left-0 right-0 top-full mt-1 z-[1300] bg-white border border-slate-200 rounded-xl shadow-2xl max-h-64 overflow-y-auto divide-y divide-slate-100"></div>
+            </div>
+          </div>
+
+          <!-- Popular Corridors -->
+          <div>
+            <label class="block text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Popular Bengaluru Corridors</label>
+            <div id="preset-buttons" class="grid grid-cols-2 gap-1.5"></div>
+          </div>
+
+          <!-- Travel Mode (Walk / Bike / Car) -->
+          <div>
+            <span class="block text-xs font-semibold text-slate-700 mb-1">Travel Mode (Speed &amp; Exposure)</span>
+            <div class="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Travel Mode">
+              <button type="button" data-mode="walk" class="mode-btn px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition flex items-center justify-center gap-1.5">
+                <svg class="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="13" cy="4" r="2"/><path d="M10 21l2-7 3 2v5"/><path d="M9 11l3-3 4 2 2-2"/><path d="M7 21l3-6"/></svg>
+                <span>Walk</span>
+              </button>
+              <button type="button" data-mode="bike" class="mode-btn px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition flex items-center justify-center gap-1.5">
+                <svg class="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="18.5" cy="17.5" r="3.5"/><path d="M15 6a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm-3 11.5V14l-3-3 4-3 2 3h2"/></svg>
+                <span>Bike</span>
+              </button>
+              <button type="button" data-mode="car" class="mode-btn px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition flex items-center justify-center gap-1.5">
+                <svg class="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1l-.8 1.63A6 6 0 0 0 2 12.42V16h2"/><circle cx="6.5" cy="16.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/></svg>
+                <span>Car</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Time of Day -->
+          <div>
+            <span class="block text-xs font-semibold text-slate-700 mb-1">Time of Day (Dynamic Environment)</span>
+            <div class="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Time of Day">
+              <button type="button" data-tod="day" class="tod-btn px-3 py-1.5 rounded-lg border text-xs font-semibold transition">Day</button>
+              <button type="button" data-tod="evening" class="tod-btn px-3 py-1.5 rounded-lg border text-xs font-semibold transition">Evening</button>
+              <button type="button" data-tod="night" class="tod-btn px-3 py-1.5 rounded-lg border text-xs font-semibold transition">Night</button>
+            </div>
+          </div>
+
+          <!-- User Risk Preference Slider -->
+          <div>
+            <div class="flex items-center justify-between text-xs mb-1">
+              <label for="risk-pref-slider" class="font-semibold text-slate-700">User Risk Preference</label>
+              <span id="risk-pref-label" class="font-bold text-navy-900">Balanced (55)</span>
+            </div>
+            <input id="risk-pref-slider" type="range" min="0" max="100" step="5" value="55" class="w-full accent-emerald-600 cursor-pointer" />
+            <div class="flex justify-between text-[10px] text-slate-500 mt-0.5">
+              <span>Time-Priority</span>
+              <span>Balanced</span>
+              <span>Cautious</span>
+            </div>
+          </div>
+
+          <!-- Primary CTA & Robustness Actions -->
+          <div class="pt-0.5 space-y-2">
+            <button id="find-routes-btn" type="button" class="w-full py-2.5 px-4 rounded-xl bg-navy-900 hover:bg-navy-800 text-white font-semibold text-sm shadow-md transition flex items-center justify-center gap-2">
+              <span>Find &amp; Compare All 4 Routes</span>
+            </button>
+            <div class="grid grid-cols-2 gap-2">
+              <button id="simulate-robustness-btn" type="button" class="py-2 px-2.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-semibold text-[11px] leading-tight transition">
+                Test Safety Condition Change
+              </button>
+              <button id="reset-conditions-btn" type="button" class="py-2 px-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 font-semibold text-[11px] leading-tight transition">
+                Reset Disruptions
+              </button>
+            </div>
+            <button id="planner-download-report-btn" type="button" class="w-full py-2 px-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 font-bold text-xs transition flex items-center justify-center gap-2 no-print">
+              <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              <span>Download Safety Report</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Citizen & Family Emergency Identity Card (Persisted to SQLite Police Dispatch DB) -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-2.5 flex-1 flex flex-col justify-between">
+          <div class="flex items-start justify-between gap-2">
+            <div>
+              <div class="flex items-center gap-1.5">
+                <span class="h-2 w-2 rounded-full bg-red-600 inline-block"></span>
+                <h3 class="text-sm font-bold text-navy-900">Citizen &amp; Family SOS Profile</h3>
+              </div>
+              <p class="text-[11px] text-slate-500 mt-0.5">Saved securely &amp; transmitted to Police Control on SOS</p>
+            </div>
+            <span id="profile-status-badge" class="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800 shrink-0">Setup Needed</span>
+          </div>
+
+          <div id="profile-summary-line" class="rounded-xl bg-slate-50 border border-slate-200/80 px-3 py-2 text-xs text-slate-700 leading-snug">
+            No citizen/family details saved yet. Configure your name, phone, blood group &amp; family contact for immediate police transmission.
+          </div>
+
+          <button id="open-profile-modal-btn" type="button" class="w-full py-2 px-3 rounded-xl bg-red-50 hover:bg-red-100 text-red-800 border border-red-200 font-bold text-xs transition flex items-center justify-center gap-1.5">
+            <span>Configure Citizen &amp; Family Details</span>
+          </button>
+        </div>
+      </aside>
+
+      <!-- Right Live Interactive Leaflet Map (8 cols on lg, full height aligned with left column) -->
+      <div id="map-section" class="lg:col-span-8 flex flex-col h-full">
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col flex-1">
+          <!-- Map Header Controls -->
+          <div class="px-5 py-3 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 bg-slate-50/70">
+            <div>
+              <h2 class="text-base font-bold text-navy-900">Live GPS Compass &amp; Safety Navigation Map</h2>
+              <p id="map-subtitle" class="text-xs text-slate-500">Vehicle starts at your location &amp; turns with your device direction · Select Route 1–4</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2 no-print">
+              <button id="use-gps-btn" type="button" class="px-2.5 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold shadow-sm transition flex items-center gap-1.5" title="Use browser GPS & compass orientation">
+                <span class="h-2 w-2 rounded-full bg-white animate-pulse"></span>
+                <span>My Current Location</span>
+              </button>
+              <button id="pick-gps-btn" type="button" class="px-2.5 py-1.5 rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 text-xs font-semibold transition" title="Click anywhere on the map to set your GPS starting point">
+                Pin GPS on Map
+              </button>
+              <div class="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 text-xs font-semibold">
+                <button id="basemap-osm" type="button" class="px-2 py-1 rounded-md bg-navy-900 text-white transition">Street</button>
+                <button id="basemap-sat" type="button" class="px-2 py-1 rounded-md text-slate-600 hover:text-navy-900 transition">Satellite</button>
+              </div>
+              <div class="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 text-xs font-semibold">
+                <button id="map-mode-strategies" type="button" class="px-2.5 py-1 rounded-md bg-navy-900 text-white transition">4 Routes</button>
+                <button id="map-mode-segments" type="button" class="px-2.5 py-1 rounded-md text-slate-600 hover:text-navy-900 transition">Segment Risk</button>
+              </div>
+              <label class="inline-flex items-center gap-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 cursor-pointer">
+                <input id="toggle-pois" type="checkbox" checked class="accent-emerald-600 rounded" />
+                <span>Police &amp; Hospitals</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Interactive Route 1 / 2 / 3 / 4 Selector Bar -->
+          <div class="px-4 py-2 bg-slate-100/80 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 no-print">
+            <div class="text-[11px] font-bold uppercase tracking-wider text-slate-600">Select Active Route:</div>
+            <div id="route-picker-bar" class="flex flex-wrap items-center gap-2 flex-1"></div>
+          </div>
+
+          <!-- Leaflet Map Container (expands flush to match left sidebar height) -->
+          <div class="relative flex-1 min-h-[560px]">
+            <div id="safepath-map" class="w-full h-full min-h-[560px] z-10"></div>
+
+            <!-- GPS Status Pill (Top Left inside map) -->
+            <div id="gps-status-pill" class="absolute top-3 left-14 z-[500] bg-white/95 backdrop-blur-sm border border-slate-200 rounded-full px-3 py-1 shadow-md text-[11px] font-semibold text-navy-900 flex items-center gap-2 max-w-[340px]">
+              <span id="gps-status-dot" class="h-2 w-2 rounded-full bg-sky-500 shrink-0"></span>
+              <span id="gps-status-text" class="truncate">GPS Vehicle anchored at Start Location</span>
+            </div>
+
+            <!-- Floating Map Legend (Bottom Left) -->
+            <div class="hidden sm:block absolute bottom-3 left-3 z-[500] bg-white/95 backdrop-blur-sm border border-slate-200 rounded-xl px-3 py-2 shadow-md text-[11px] space-y-1 max-w-[240px]">
+              <div class="font-bold text-navy-900 mb-1">Route &amp; Risk Legend</div>
+              <div id="legend-strategies" class="space-y-1">
+                <div class="flex items-center gap-2"><span class="w-4 h-1 rounded bg-emerald-600 inline-block"></span><span><strong>Route 1:</strong> Adaptive</span></div>
+                <div class="flex items-center gap-2"><span class="w-4 h-1 rounded bg-indigo-600 inline-block"></span><span><strong>Route 2:</strong> Fixed Weighted</span></div>
+                <div class="flex items-center gap-2"><span class="w-4 h-1 rounded bg-sky-600 inline-block"></span><span><strong>Route 3:</strong> Safety-Only</span></div>
+                <div class="flex items-center gap-2"><span class="w-4 h-0.5 border-t-2 border-dashed border-rose-600 inline-block"></span><span><strong>Route 4:</strong> Shortest</span></div>
+              </div>
+              <div id="legend-segments" class="hidden space-y-1">
+                <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-emerald-500 inline-block"></span><span>Safe Segment (&ge; 70)</span></div>
+                <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-amber-500 inline-block"></span><span>Moderate Risk (40 – 69)</span></div>
+                <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-rose-600 inline-block"></span><span>High-Risk (&lt; 40)</span></div>
+              </div>
+              <div class="pt-1 border-t border-slate-100 flex items-center gap-3 text-[10px] text-slate-600">
+                <span><strong class="text-blue-700">P</strong> Police</span>
+                <span><strong class="text-rose-700">H</strong> Hospital</span>
+                <span><strong class="text-sky-600">&#10148;</strong> Compass Arrow</span>
+              </div>
+            </div>
+
+            <!-- GPS Navigation Turn-by-Turn HUD -->
+            <div class="absolute bottom-3 left-3 sm:bottom-auto sm:left-auto sm:top-3 sm:right-3 z-[500] bg-navy-950/95 text-white border border-white/15 rounded-xl px-3.5 py-2.5 shadow-xl max-w-[280px] sm:max-w-[320px] space-y-1.5 no-print">
+              <div class="flex items-center justify-between gap-3">
+                <div class="min-w-0">
+                  <div class="text-[10px] uppercase tracking-wider text-safe-400 font-bold" id="nav-hud-route-tag">GPS Ready · Route 1</div>
+                  <div class="text-xs font-bold truncate" id="nav-hud-road">Stationary · Waiting to move</div>
+                </div>
+                <span id="nav-hud-safety" class="text-[11px] font-extrabold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 shrink-0">--/100</span>
+              </div>
+              <div class="flex items-center justify-between gap-2 text-[11px] text-slate-300">
+                <span id="nav-hud-metrics">0.0 km · 0 min</span>
+                <div class="flex items-center gap-1.5">
+                  <button id="gps-recenter-btn" type="button" class="px-2 py-1 rounded-md bg-white/10 hover:bg-white/20 text-white font-semibold transition">Recenter</button>
+                  <button id="gps-drive-btn" type="button" class="px-2.5 py-1 rounded-md bg-safe-600 hover:bg-emerald-500 text-white font-bold transition">Start GPS</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Active Disruption Alert Banner (shown when Robustness Test is active) -->
+    <section id="robustness-alert-panel" class="hidden bg-amber-50 border border-amber-300 rounded-2xl p-5 shadow-sm space-y-3">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h3 class="text-sm font-bold text-amber-950">Robustness Stress Test Active – Safety Condition Degradation</h3>
+          <p class="text-xs text-amber-800">Selected segments experienced lighting outages, increased incident risk, and reduced pedestrian density.</p>
+        </div>
+        <span class="text-xs font-semibold px-2.5 py-1 rounded-md bg-amber-200/70 text-amber-950">Before vs. After Comparison</span>
+      </div>
+      <div id="disruption-logs" class="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs"></div>
+      <div class="overflow-x-auto bg-white rounded-xl border border-amber-200">
+        <table class="w-full text-left text-xs">
+          <thead class="bg-amber-100/70 text-amber-950 font-semibold">
+            <tr>
+              <th class="px-3 py-2">Strategy</th>
+              <th class="px-3 py-2">Baseline Safety</th>
+              <th class="px-3 py-2">After Disruption</th>
+              <th class="px-3 py-2">Delta</th>
+              <th class="px-3 py-2">High-Risk Segs</th>
+              <th class="px-3 py-2">Time (min)</th>
+              <th class="px-3 py-2">Re-Routed?</th>
+            </tr>
+          </thead>
+          <tbody id="robustness-table-body" class="divide-y divide-amber-100"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Side-by-Side 4 Strategy Comparison Cards & Table (adaptive-explanation-pill removed) -->
+    <section id="compare-section" class="space-y-4 transition-opacity duration-300">
+      <div class="flex flex-wrap items-end justify-between gap-2">
+        <div>
+          <div class="flex items-center gap-2.5 flex-wrap">
+            <h2 class="text-lg font-bold text-navy-900">Side-by-Side Strategy Comparison</h2>
+            <span id="compare-emergency-note" class="hidden text-[11px] font-bold px-2.5 py-0.5 rounded-md bg-red-100 text-red-800 border border-red-200">
+              De-emphasized during Emergency Mode · Police SOS Route prioritized
+            </span>
+          </div>
+          <p class="text-xs text-slate-800 font-medium">Click any strategy card to highlight it on the map and inspect its 6-factor profile.</p>
+        </div>
+        <button id="download-report-btn" type="button" class="px-4 py-2 rounded-xl bg-navy-900 hover:bg-navy-800 text-white text-xs font-bold shadow-sm transition flex items-center gap-2 no-print">
+          <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          <span>Download Safety Report</span>
+        </button>
+      </div>
+
+      <div id="compare-content-wrap" class="space-y-4 transition-all duration-300">
+        <!-- 4 Strategy Cards -->
+        <div id="strategy-cards-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4"></div>
+
+        <!-- Full Quantitative Metrics Table -->
+        <div class="bg-white rounded-2xl border border-slate-300 shadow-sm overflow-hidden">
+          <div class="px-5 py-3 border-b border-slate-200 bg-slate-100/80 flex items-center justify-between">
+            <h3 class="text-sm font-bold text-navy-950">Quantitative Strategy Benchmark Table</h3>
+            <span class="text-[11px] font-semibold text-slate-800">High-Risk Threshold: Segment Score &lt; 40/100</span>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs sm:text-sm">
+              <thead class="bg-slate-100 text-slate-900 font-bold text-xs uppercase tracking-wider border-b border-slate-300">
+                <tr>
+                  <th class="px-4 py-3">Rank</th>
+                  <th class="px-4 py-3">Routing Strategy</th>
+                  <th class="px-4 py-3">Safety Score</th>
+                  <th class="px-4 py-3">Travel Time</th>
+                  <th class="px-4 py-3">Length (km)</th>
+                  <th class="px-4 py-3">High-Risk Segs</th>
+                  <th class="px-4 py-3">Weakest Seg</th>
+                  <th class="px-4 py-3">Recommendation Reason</th>
+                </tr>
+              </thead>
+              <tbody id="comparison-table-body" class="divide-y divide-slate-200 text-slate-900"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Prominent Floating Red Circular Emergency SOS Button (always accessible) -->
+  <div class="sos-fab-wrap no-print">
+    <div id="sos-fab-pulse" class="sos-fab-pulse"></div>
+    <button id="sos-floating-btn" type="button" aria-label="Activate Emergency SOS and dispatch alert to nearest police station" class="relative w-20 h-20 rounded-full bg-gradient-to-br from-red-600 via-red-600 to-rose-700 hover:from-red-500 hover:to-rose-700 text-white border-4 border-white shadow-2xl flex flex-col items-center justify-center gap-0.5 transition transform hover:scale-105 active:scale-95 focus:outline-none focus:ring-4 focus:ring-red-400">
+      <svg class="w-6 h-6 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        <path d="M12 8v4"/>
+        <path d="M12 16h.01"/>
+      </svg>
+      <span id="sos-fab-label" class="text-xs font-black tracking-wider leading-none">SOS</span>
+      <span class="text-[8px] font-bold uppercase tracking-wider text-red-100 leading-none">Emergency</span>
+    </button>
+  </div>
+
+  <!-- Citizen & Family Profile Modal -->
+  <div id="profile-modal" role="dialog" aria-modal="true" aria-labelledby="profile-modal-title" class="hidden fixed inset-0 z-[1900] bg-slate-950/75 flex items-center justify-center p-4 overflow-y-auto no-print">
+    <div class="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-2xl w-full overflow-hidden my-auto">
+      <div class="bg-gradient-to-r from-navy-950 via-navy-900 to-navy-800 text-white px-6 py-4 flex items-center justify-between gap-3">
+        <div>
+          <h2 id="profile-modal-title" class="text-base sm:text-lg font-extrabold">Citizen &amp; Family Emergency Profile</h2>
+          <p class="text-xs text-emerald-200/90">Securely saved and automatically transmitted to Police Control when SOS activates.</p>
+        </div>
+        <button id="close-profile-modal-btn" type="button" aria-label="Close profile editor" class="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition">✕</button>
+      </div>
+
+      <form id="citizen-profile-form" class="p-5 sm:p-6 space-y-4 text-xs">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label for="prof-full-name" class="block font-semibold text-slate-700 mb-1">Full Name *</label>
+            <input id="prof-full-name" type="text" required placeholder="e.g., Ananya Sharma" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-navy-700 focus:ring-2 focus:ring-navy-700/20 outline-none" />
+          </div>
+          <div>
+            <label for="prof-phone" class="block font-semibold text-slate-700 mb-1">Mobile Phone Number *</label>
+            <input id="prof-phone" type="tel" required placeholder="+91 98XXXXXXXX" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-navy-700 focus:ring-2 focus:ring-navy-700/20 outline-none" />
+          </div>
+          <div>
+            <label for="prof-age" class="block font-semibold text-slate-700 mb-1">Age</label>
+            <input id="prof-age" type="text" placeholder="e.g., 22" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none" />
+          </div>
+          <div>
+            <label for="prof-gender" class="block font-semibold text-slate-700 mb-1">Gender</label>
+            <select id="prof-gender" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white outline-none">
+              <option value="">Select</option>
+              <option value="Female">Female</option>
+              <option value="Male">Male</option>
+              <option value="Non-Binary">Non-Binary</option>
+              <option value="Prefer not to say">Prefer not to say</option>
+            </select>
+          </div>
+          <div>
+            <label for="prof-blood" class="block font-semibold text-slate-700 mb-1">Blood Group</label>
+            <select id="prof-blood" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white outline-none">
+              <option value="">Select Blood Group</option>
+              <option value="O+">O+</option>
+              <option value="O-">O-</option>
+              <option value="A+">A+</option>
+              <option value="A-">A-</option>
+              <option value="B+">B+</option>
+              <option value="B-">B-</option>
+              <option value="AB+">AB+</option>
+              <option value="AB-">AB-</option>
+            </select>
+          </div>
+          <div>
+            <label for="prof-vehicle" class="block font-semibold text-slate-700 mb-1">Vehicle Number / Model (if any)</label>
+            <input id="prof-vehicle" type="text" placeholder="e.g., KA-01-MJ-4521 (Activa / Swift)" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none" />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label for="prof-address" class="block font-semibold text-slate-700 mb-1">Home Address</label>
+            <input id="prof-address" type="text" placeholder="Street, Area, City, PIN" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none" />
+          </div>
+          <div>
+            <label for="prof-medical" class="block font-semibold text-slate-700 mb-1">Medical Conditions / Allergies</label>
+            <input id="prof-medical" type="text" placeholder="None / Asthma / Insulin etc." class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none" />
+          </div>
+        </div>
+
+        <div class="border-t border-slate-200 pt-3">
+          <div class="text-xs font-extrabold uppercase tracking-wider text-red-700 mb-2">Family &amp; Next-of-Kin Emergency Contacts</div>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label for="prof-fam1-name" class="block font-semibold text-slate-700 mb-1">Primary Family Name *</label>
+              <input id="prof-fam1-name" type="text" required placeholder="e.g., Rajesh Sharma" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none" />
+            </div>
+            <div>
+              <label for="prof-fam1-rel" class="block font-semibold text-slate-700 mb-1">Relation</label>
+              <select id="prof-fam1-rel" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white outline-none">
+                <option value="Mother">Mother</option>
+                <option value="Father">Father</option>
+                <option value="Spouse">Spouse</option>
+                <option value="Sibling">Sibling</option>
+                <option value="Guardian">Guardian</option>
+                <option value="Friend">Trusted Friend</option>
+              </select>
+            </div>
+            <div>
+              <label for="prof-fam1-phone" class="block font-semibold text-slate-700 mb-1">Primary Family Phone *</label>
+              <input id="prof-fam1-phone" type="tel" required placeholder="+91 99XXXXXXXX" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none" />
+            </div>
+            <div class="sm:col-span-2">
+              <label for="prof-fam2-name" class="block font-semibold text-slate-700 mb-1">Secondary Emergency Contact Name</label>
+              <input id="prof-fam2-name" type="text" placeholder="Optional backup contact" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none" />
+            </div>
+            <div>
+              <label for="prof-fam2-phone" class="block font-semibold text-slate-700 mb-1">Secondary Contact Phone</label>
+              <input id="prof-fam2-phone" type="tel" placeholder="+91 ..." class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none" />
+            </div>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+          <button id="cancel-profile-modal-btn" type="button" class="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 font-semibold hover:bg-slate-50">Cancel</button>
+          <button type="submit" class="px-5 py-2 rounded-xl bg-navy-900 hover:bg-navy-800 text-white font-bold shadow-sm">Save Emergency Profile</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Set Your Current Location Modal (Fallback + Quick Chooser when Browser GPS Permission is Blocked) -->
+  <div id="current-location-modal" role="dialog" aria-modal="true" aria-labelledby="cur-loc-modal-title" class="hidden fixed inset-0 z-[1750] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto no-print">
+    <div class="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-lg w-full overflow-hidden my-auto">
+      <div class="bg-gradient-to-r from-navy-900 to-sky-700 text-white px-6 py-4 flex items-center justify-between gap-3">
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="h-10 w-10 rounded-xl bg-white/15 border border-white/25 flex items-center justify-center shrink-0">
+            <svg class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
+              <circle cx="12" cy="12" r="8"/>
+            </svg>
+          </div>
+          <div class="min-w-0">
+            <h2 id="cur-loc-modal-title" class="text-base font-extrabold tracking-tight">Choose Your Current Location</h2>
+            <p class="text-[11px] text-sky-100 truncate">Select detected area, search any place, or pin directly on the map</p>
+          </div>
+        </div>
+        <button id="close-cur-loc-modal-btn" type="button" aria-label="Close location chooser" class="p-1.5 rounded-lg bg-white/15 hover:bg-white/25 text-white transition shrink-0">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+
+      <div class="p-5 space-y-3.5">
+        <div id="cur-loc-status-note" class="rounded-xl bg-sky-50 border border-sky-200 px-3.5 py-2.5 text-xs text-sky-950 font-medium leading-relaxed">
+          Browser GPS access is restricted in this window. Search any neighborhood, landmark, or shop below, use your detected area, or pin your exact spot on the map.
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          <button id="cur-loc-pin-map-btn" type="button" class="px-3.5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition flex items-center justify-center gap-2">
+            <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+              <circle cx="12" cy="10" r="3"/>
+            </svg>
+            Pin Exact Spot on Map
+          </button>
+          <button id="cur-loc-retry-gps-btn" type="button" class="px-3.5 py-2.5 rounded-xl bg-white hover:bg-slate-50 text-navy-900 border border-slate-300 text-xs font-bold shadow-sm transition flex items-center justify-center gap-2">
+            <svg class="w-4 h-4 text-sky-600 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="23 4 23 10 17 10"/>
+              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+            </svg>
+            Retry Live Browser GPS
+          </button>
+        </div>
+
+        <div id="cur-loc-quick-cards" class="space-y-2 hidden"></div>
+
+        <div>
+          <label for="cur-loc-search-input" class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1.5">Search Bengaluru or Any Place in India</label>
+          <div class="relative">
+            <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+            </span>
+            <input id="cur-loc-search-input" type="text" autocomplete="off" placeholder="Search area, street, shop, cafe, metro, hospital, or city..." class="w-full rounded-xl border border-slate-300 bg-white pl-9 pr-3 py-2.5 text-xs font-semibold text-navy-900 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 outline-none" />
+          </div>
+        </div>
+
+        <div id="cur-loc-results" class="max-h-60 overflow-y-auto divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white"></div>
+
+        <div class="flex items-center justify-end pt-1">
+          <button id="cancel-cur-loc-modal-btn" type="button" class="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 text-xs font-semibold hover:bg-slate-50 transition">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Active Emergency Alert & Police Dispatch Modal Screen (Zero Simulation Text) -->
+  <div id="sos-alert-modal" role="dialog" aria-modal="true" aria-labelledby="sos-modal-title" class="hidden fixed inset-0 z-[1800] bg-slate-950/80 flex items-center justify-center p-4 overflow-y-auto no-print">
+    <div class="bg-white rounded-3xl border-2 border-red-500 shadow-2xl max-w-3xl w-full overflow-hidden my-auto">
+      <!-- Urgent Header -->
+      <div class="bg-gradient-to-r from-red-700 via-red-600 to-orange-600 text-white px-6 py-4 flex items-start justify-between gap-3">
+        <div class="flex items-start gap-3">
+          <div class="h-11 w-11 rounded-2xl bg-white/15 border border-white/30 flex items-center justify-center shrink-0">
+            <svg class="w-6 h-6 text-white animate-pulse" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+          </div>
+          <div>
+            <h2 id="sos-modal-title" class="text-lg sm:text-xl font-black tracking-tight">Emergency Activated – Help is on the way</h2>
+            <p id="sos-origin-line" class="text-xs text-red-100 mt-0.5">Detected Location: Bengaluru</p>
+          </div>
+        </div>
+        <button id="sos-minimize-x-btn" type="button" aria-label="Minimize alert to inspect map" class="p-1.5 rounded-lg bg-white/15 hover:bg-white/25 text-white transition shrink-0">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+
+      <!-- Modal Body -->
+      <div class="p-5 sm:p-6 space-y-4">
+        <!-- Dispatch Confirmation -->
+        <div class="rounded-xl bg-red-50 border border-red-200 px-4 py-3 flex items-start gap-3">
+          <span class="h-2.5 w-2.5 rounded-full bg-red-600 animate-ping mt-1 shrink-0"></span>
+          <div class="text-xs text-red-950">
+            <div class="font-bold flex items-center gap-2 flex-wrap">
+              <span>Alert has been sent to nearest police station and emergency family contacts</span>
+            </div>
+            <p id="sos-dispatch-sub" class="text-red-800 mt-0.5">Live GPS coordinates, citizen identity, family numbers, and safe route have been sent to the nearest police station.</p>
+          </div>
+        </div>
+
+        <!-- Nearest Police Station & Safe Route Summary -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-1">
+            <div class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Nearest Police Station</div>
+            <div id="sos-police-name" class="text-base font-extrabold text-navy-900">--</div>
+            <div id="sos-police-distance" class="text-xs font-bold text-red-700">-- km away</div>
+            <div id="sos-police-city" class="text-[11px] text-slate-600 pt-0.5">Destination locked to nearest police command.</div>
+          </div>
+
+          <div class="rounded-2xl border border-orange-200 bg-orange-50/70 p-4 space-y-1">
+            <div class="text-[10px] font-bold uppercase tracking-wider text-orange-800">Adaptive Emergency Route (98% Safety)</div>
+            <div id="sos-route-metrics" class="text-base font-extrabold text-navy-900">Safety --/100 · -- min</div>
+            <div id="sos-route-dist" class="text-xs font-bold text-emerald-700">-- km · 0 High-Risk Segments</div>
+            <div id="sos-route-corridor" class="text-[11px] text-slate-700 leading-snug pt-0.5">--</div>
+          </div>
+        </div>
+
+        <!-- Transmitted Citizen, Family & Location Details + Quick Update -->
+        <div class="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 space-y-3">
+          <div id="sos-transmitted-details" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs"></div>
+
+          <!-- Inline Quick-Update to Police Record -->
+          <div class="border-t border-slate-200 pt-2.5 space-y-2">
+            <div class="text-[11px] font-bold text-slate-700">Quick-Attach / Update Citizen &amp; Family Details for Police &amp; Family Alert:</div>
+            <div class="grid grid-cols-1 sm:grid-cols-4 gap-2 text-xs">
+              <input id="sos-quick-name" type="text" placeholder="Your Full Name" class="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 outline-none" />
+              <input id="sos-quick-phone" type="tel" placeholder="Your Mobile No." class="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 outline-none" />
+              <input id="sos-quick-fam-name" type="text" placeholder="Family Contact Name" class="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 outline-none" />
+              <input id="sos-quick-fam-phone" type="tel" placeholder="Family Phone No." class="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 outline-none" />
+            </div>
+            <div class="flex items-center justify-between gap-2">
+              <span id="sos-quick-save-status" class="text-[11px] font-semibold text-emerald-700"></span>
+              <button id="sos-update-packet-btn" type="button" class="px-3 py-1.5 rounded-lg bg-navy-900 hover:bg-navy-800 text-white text-[11px] font-bold transition">
+                Save &amp; Send Updated Details
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Emergency Helplines (112 / 100) -->
+        <div class="rounded-2xl border border-slate-200 p-3.5 space-y-2.5 bg-white">
+          <div class="flex items-center justify-between gap-2 flex-wrap">
+            <span class="text-xs font-bold text-navy-900">Emergency Helpline Direct Call</span>
+            <span class="text-[10px] font-semibold text-emerald-700">24x7 National &amp; Police Control Room</span>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <a id="sos-call-112-btn" href="tel:112" class="px-3.5 py-2.5 rounded-xl bg-navy-900 hover:bg-navy-800 text-white text-xs font-bold flex items-center justify-between gap-2 transition">
+              <span class="flex items-center gap-2">
+                <svg class="w-4 h-4 text-emerald-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                <span>Call 112 (Emergency)</span>
+              </span>
+              <span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300">Dial Now</span>
+            </a>
+            <a id="sos-call-100-btn" href="tel:100" class="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold flex items-center justify-between gap-2 transition">
+              <span class="flex items-center gap-2">
+                <svg class="w-4 h-4 text-amber-300 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                <span>Call 100 (Police Control)</span>
+              </span>
+              <span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-200">Dial Now</span>
+            </a>
+          </div>
+          <div id="sos-call-status" class="hidden rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 text-[11px] font-semibold text-emerald-900"></div>
+        </div>
+
+        <!-- Modal Actions -->
+        <div class="flex flex-col sm:flex-row gap-3 pt-1">
+          <button id="sos-view-map-btn" type="button" class="sm:w-1/2 py-3 px-4 rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-bold text-sm shadow-md transition">
+            View Emergency Route on Map
+          </button>
+          <button id="sos-cancel-btn" type="button" class="sm:w-1/2 py-3.5 px-5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-extrabold text-sm shadow-lg ring-2 ring-red-200 transition">
+            Cancel Emergency
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/js/main.js"></script>
+</body>
+</html>

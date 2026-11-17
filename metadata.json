@@ -1,0 +1,6 @@
+{
+  "name": "SafePath – Personal Safety Route Planner",
+  "description": "Multi-objective safety route planner comparing shortest, safety-only, fixed-weighted, and adaptive paths with sensitivity testing.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
